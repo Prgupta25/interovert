@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { setSession } from '../utils/session';
+import apiClient from '../services/apiClient';
 
 export default function OTPVerification({ email, onVerificationComplete }) {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -32,27 +34,12 @@ export default function OTPVerification({ email, onVerificationComplete }) {
     const otpString = otp.join('');
     
     try {
-      const response = await fetch('http://localhost:5000/api/verify-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, otp: otpString }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success('Email verified successfully!');
-
-        localStorage.setItem('email', email);
-
-        onVerificationComplete();
-      } else {
-        toast.error(data.message || 'Invalid OTP');
-      }
+      const { data } = await apiClient.post('/api/verify-otp', { email, otp: otpString });
+      toast.success('Email verified successfully!');
+      setSession({ token: data.token, user: data.user });
+      onVerificationComplete();
     } catch (error) {
-      toast.error('Verification failed. Please try again.');
+      toast.error(error.message || 'Verification failed. Please try again.');
     }
   };
 

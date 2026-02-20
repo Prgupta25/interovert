@@ -2,11 +2,13 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, LogIn, User, Lock } from 'lucide-react'
+import { Eye, EyeOff, LogIn, User, Lock, Phone } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import d1 from "../assets/images/b3.jpg"
 import { toast } from 'react-hot-toast'
 import OTPVerification from './OTPVerification'
+import apiClient from '../services/apiClient'
+import AuthShell from '../features/auth/AuthShell'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -14,6 +16,8 @@ export default function Login() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    phoneNumber: '',
+    whatsappNumber: '',
   })
   const [showOTP, setShowOTP] = useState(false)
   const [userEmail, setUserEmail] = useState('')
@@ -29,28 +33,22 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('http://localhost:5000/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      })
+      const { data } = await apiClient.post('/api/login', {
+        email: formData.email,
+        password: formData.password,
+        phoneNumber: formData.phoneNumber,
+        whatsappNumber: formData.whatsappNumber,
+      });
 
-      const data = await response.json()
+      if (data?.devOtp) {
+        toast.success(`Dev OTP: ${data.devOtp}`);
+      }
 
-      if (response.ok) {
         setUserEmail(formData.email)
         setShowOTP(true)
-        toast.success('OTP sent to your email!')
-      } else {
-        toast.error(data.message || 'Login failed')
-      }
+        toast.success(data?.message || 'OTP sent to your email!')
     } catch (error) {
-      toast.error('Something went wrong. Please try again.')
+      toast.error(error.message || 'Something went wrong. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -61,26 +59,20 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col md:flex-row">
-      
-      <div className="md:w-1/2 bg-indigo-600">
-        <img
-          src={d1} 
-          alt="Introvert Meetup"
-          className="w-full h-full object-cover"
-        />
-      </div>
-
-      
-      <div className="md:w-1/2 flex items-center justify-center p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-md"
-        >
-          <h2 className="text-3xl font-bold text-white mb-6 text-center">Welcome Back</h2>
-          <form onSubmit={handleSubmit} className="space-y-6">
+    <AuthShell
+      imageSrc={d1}
+      imageAlt="Introvert Meetup"
+      title="Welcome Back"
+      footer={(
+        <p className="mt-6 text-center text-sm text-gray-400">
+          Not a member?{' '}
+          <Link to="/signup" className="font-medium text-indigo-400 hover:text-indigo-300">
+            Sign up now
+          </Link>
+        </p>
+      )}
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
                 Email
@@ -124,6 +116,40 @@ export default function Login() {
                 </button>
               </div>
             </div>
+            <div>
+              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-300 mb-2">
+                Phone Number (required for older accounts)
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  id="phoneNumber"
+                  name="phoneNumber"
+                  type="tel"
+                  className="w-full bg-gray-800 text-white rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                  placeholder="+91XXXXXXXXXX"
+                  value={formData.phoneNumber}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="whatsappNumber" className="block text-sm font-medium text-gray-300 mb-2">
+                WhatsApp Number (optional)
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  id="whatsappNumber"
+                  name="whatsappNumber"
+                  type="tel"
+                  className="w-full bg-gray-800 text-white rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                  placeholder="If different from phone number"
+                  value={formData.whatsappNumber}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <input
@@ -137,9 +163,13 @@ export default function Login() {
                 </label>
               </div>
               <div className="text-sm">
-                <a href="#" className="font-medium text-indigo-400 hover:text-indigo-300">
+                <button
+                  type="button"
+                  onClick={() => toast('Password reset is coming soon.')}
+                  className="font-medium text-indigo-400 hover:text-indigo-300"
+                >
                   Forgot your password?
-                </a>
+                </button>
               </div>
             </div>
             <div>
@@ -153,15 +183,7 @@ export default function Login() {
                 Sign in
               </motion.button>
             </div>
-          </form>
-          <p className="mt-6 text-center text-sm text-gray-400">
-            Not a member?{' '}
-            <Link to="/signup" className="font-medium text-indigo-400 hover:text-indigo-300">
-              Sign up now
-            </Link>
-          </p>
-        </motion.div>
-      </div>
+      </form>
 
       {showOTP && (
         <OTPVerification 
@@ -169,7 +191,7 @@ export default function Login() {
           onVerificationComplete={handleVerificationComplete}
         />
       )}
-    </div>
+    </AuthShell>
   )
 }
 

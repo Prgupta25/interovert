@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, UserPlus, User, Lock, Mail, Calendar } from 'lucide-react'
+import { Eye, EyeOff, UserPlus, User, Lock, Mail, Calendar, Phone } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import d1 from "../assets/images/b3.jpg"
 import { toast } from 'react-hot-toast';
-import { API_URL } from '../config/config';
+import apiClient from '../services/apiClient';
+import AuthShell from '../features/auth/AuthShell';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ export default function Signup() {
     email: '',
     password: '',
     birthdate: '',
+    phoneNumber: '',
+    whatsappNumber: '',
   })
   const [isLoading, setIsLoading] = useState(false);
 
@@ -29,61 +32,32 @@ export default function Signup() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success('Registration successful! Please login.');
-        navigate('/login');
-      } else {
-        if (data.error === 'EMAIL_EXISTS') {
-          toast.error('Email already registered. Please use a different email.');
-        } else if (data.error === 'INVALID_PASSWORD') {
-          toast.error('Password must be at least 6 characters long.');
-        } else if (data.error === 'INVALID_EMAIL') {
-          toast.error('Please enter a valid email address.');
-        } else if (data.error === 'INVALID_AGE') {
-          toast.error('You must be at least 13 years old to register.');
-        } else {
-          toast.error(data.message || 'Registration failed. Please try again.');
-        }
-      }
+      const { data } = await apiClient.post('/api/signup', formData);
+      toast.success(data?.message || 'Registration successful! Please login.');
+      navigate('/login');
     } catch (error) {
       console.error('Signup error:', error);
-      toast.error('Network error. Please check your connection and try again.');
+      toast.error(error.message || 'Network error. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col md:flex-row">
-
-      <div className="md:w-1/2 bg-indigo-600">
-        <img
-          src={d1}
-          alt="Introvert Meetup"
-          className="w-full h-full object-cover"
-        />
-      </div>
-
-
-      <div className="md:w-1/2 flex items-center justify-center p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-md"
-        >
-          <h2 className="text-3xl font-bold text-white mb-6 text-center">Create an Account</h2>
-          <form onSubmit={handleSubmit} className="space-y-6">
+    <AuthShell
+      imageSrc={d1}
+      imageAlt="Introvert Meetup"
+      title="Create an Account"
+      footer={(
+        <p className="mt-6 text-center text-sm text-gray-400">
+          Already have an account?{' '}
+          <Link to="/login" className="font-medium text-indigo-400 hover:text-indigo-300">
+            Sign in
+          </Link>
+        </p>
+      )}
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">
                 Full Name
@@ -162,6 +136,41 @@ export default function Signup() {
                 />
               </div>
             </div>
+            <div>
+              <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-300 mb-2">
+                Phone Number
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  id="phoneNumber"
+                  name="phoneNumber"
+                  type="tel"
+                  required
+                  className="w-full bg-gray-800 text-white rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                  placeholder="+91XXXXXXXXXX"
+                  value={formData.phoneNumber}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="whatsappNumber" className="block text-sm font-medium text-gray-300 mb-2">
+                WhatsApp Number (Optional)
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  id="whatsappNumber"
+                  name="whatsappNumber"
+                  type="tel"
+                  className="w-full bg-gray-800 text-white rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                  placeholder="Leave blank to use phone number"
+                  value={formData.whatsappNumber}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
             <div className="flex items-center">
               <input
                 id="terms"
@@ -172,7 +181,7 @@ export default function Signup() {
               />
               <label htmlFor="terms" className="ml-2 block text-sm text-gray-300">
                 I agree to the{' '}
-                <a href="#" className="font-medium text-indigo-400 hover:text-indigo-300">
+                <a href="/#blog" className="font-medium text-indigo-400 hover:text-indigo-300">
                   Terms and Conditions
                 </a>
               </label>
@@ -198,15 +207,7 @@ export default function Signup() {
                 )}
               </motion.button>
             </div>
-          </form>
-          <p className="mt-6 text-center text-sm text-gray-400">
-            Already have an account?{' '}
-            <Link to="/login" className="font-medium text-indigo-400 hover:text-indigo-300">
-              Sign in
-            </Link>
-          </p>
-        </motion.div>
-      </div>
-    </div>
+      </form>
+    </AuthShell>
   )
 }

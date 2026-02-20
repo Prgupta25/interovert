@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useSpring, useAnimation } from 'framer-motion';
 import { Menu, X, MapPin, ChevronLeft, ChevronRight, Download, QrCode, Users, Compass, Coffee, Music, Book, Headphones, Camera, MessageSquareMore } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { getCurrentUser } from '../utils/session';
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const location = useLocation();
+  const navigate = useNavigate();
   
   const [email, setEmail] = useState("");
 
@@ -20,13 +23,19 @@ function Navbar() {
       setScrollProgress(progress);
     };
 
-    if(localStorage.getItem("email"))
-    {
-      setEmail(localStorage.getItem("email"));
-    }
+    const currentUser = getCurrentUser();
+    if (currentUser?.email) setEmail(currentUser.email);
 
     window.addEventListener('scroll', updateProgress);
-    return () => window.removeEventListener('scroll', updateProgress);
+    const onStorage = () => {
+      const updated = getCurrentUser();
+      setEmail(updated?.email || '');
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('scroll', updateProgress);
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
 
   const progressBarLeft = {
@@ -38,6 +47,28 @@ function Navbar() {
     width: `${scrollProgress / 2}%`,
     left: '50%'
   };
+
+  const scrollToSection = (sectionId) => {
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    const navOffset = 84;
+    const y = section.getBoundingClientRect().top + window.pageYOffset - navOffset;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  };
+
+  const handleNavItemClick = (item) => {
+    const sectionId = item.toLowerCase();
+    setIsMenuOpen(false);
+
+    if (location.pathname === '/') {
+      scrollToSection(sectionId);
+      return;
+    }
+
+    navigate(`/#${sectionId}`);
+  };
+
   return (
     <>
       <div className="fixed top-0 z-50 w-full h-1">
@@ -61,16 +92,17 @@ function Navbar() {
 
 
             <div className="hidden md:flex items-center space-x-8">
-              {['Features', 'Explore', 'Community', 'Blog'].map((item, index) => (
-                <motion.a
+              {['Features', 'Explore', 'Community', 'Blog'].map((item) => (
+                <motion.button
                   key={item}
-                  href={`#${item.toLowerCase()}`}
+                  type="button"
+                  onClick={() => handleNavItemClick(item)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className="text-gray-700 hover:text-indigo-600 transition-colors"
                 >
                   {item}
-                </motion.a>
+                </motion.button>
               ))}
               <Link to="/chatbot">
                 <motion.button
@@ -88,9 +120,10 @@ function Navbar() {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="px-4 py-2 text-indigo-600 border border-indigo-600 rounded-full transition-colors hover:bg-indigo-600 hover:text-white"
+                    title={email}
+                    className="flex items-center justify-center w-10 h-10 text-lg font-semibold text-white bg-indigo-600 rounded-full transition-colors hover:bg-indigo-700"
                   >
-                    {email}
+                    {email.charAt(0).toUpperCase()}
                   </motion.button>
                 </Link>
               ) : (
@@ -141,9 +174,14 @@ function Navbar() {
           >
             <div className="px-4 pt-2 pb-4 space-y-4">
               {['Features', 'Explore', 'Community', 'Blog'].map((item) => (
-                <a key={item} href={`#${item.toLowerCase()}`} className="block text-gray-700 hover:text-indigo-600 transition-colors">
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => handleNavItemClick(item)}
+                  className="block text-gray-700 hover:text-indigo-600 transition-colors"
+                >
                   {item}
-                </a>
+                </button>
               ))}
               <Link to="/chatbot">
                 <button className="w-full flex items-center justify-center gap-2 px-4 py-2 text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full transition-colors hover:from-indigo-700 hover:to-purple-700 mb-2">
@@ -154,8 +192,8 @@ function Navbar() {
               {
                 email ? (
                   <Link to="/profile">
-                    <button className="w-full flex items-center justify-center gap-2 px-4 py-2 text-indigo-600 border border-indigo-600 rounded-full transition-colors hover:bg-indigo-600 hover:text-white">
-                      {email}
+                    <button title={email} className="flex items-center justify-center w-10 h-10 mx-auto text-lg font-semibold text-white bg-indigo-600 rounded-full transition-colors hover:bg-indigo-700">
+                      {email.charAt(0).toUpperCase()}
                     </button>
                   </Link>
                 ) : (

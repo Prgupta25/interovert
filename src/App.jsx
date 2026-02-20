@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './components/Home';
 
@@ -11,7 +11,7 @@ import Login from './components/Login';
 import Signup from './components/Signup';
 import Profile from './components/Profile';
 import Chat from './components/Chat';
-import ChatBot from './components/ChatBot';
+import ChatBot from './components/Chatbot';
 import { Toaster } from 'react-hot-toast';
 
 function App() {

@@ -3,33 +3,20 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Settings, Edit2, Plus, Camera, Trash2, ChevronDown, Rocket, Users, Briefcase, GraduationCap, MapPin, Baby, Sparkles, Github, Linkedin, Twitter, Instagram, Facebook, Link, Save, ArrowLeft } from 'lucide-react'
-
-const lookingForOptions = [
-  { id: 'hobbies', label: 'Practice Hobbies', icon: '🎨' },
-  { id: 'socialize', label: 'Socialize', icon: '💭' },
-  { id: 'friends', label: 'Make Friends', icon: '👥' },
-  { id: 'network', label: 'Professionally Network', icon: '💼' },
-]
-
-const interestOptions = [
-  'Small Business Marketing', 'Group Singing', 'Poker', 'Acoustic Guitar',
-  'Photography', 'Hiking', 'Cooking', 'Reading', 'Traveling', 'Yoga',
-  'Painting', 'Dancing', 'Writing', 'Coding', 'Gardening', 'Other'
-]
-
-const aboutMeOptions = [
-  { id: 'graduate', label: 'Recent Graduate', icon: <GraduationCap size={20} /> },
-  { id: 'student', label: 'Student', icon: '🎒' },
-  { id: 'newInTown', label: 'New In Town', icon: <MapPin size={20} /> },
-  { id: 'emptyNester', label: 'New Empty Nester', icon: '🏠' },
-  { id: 'retired', label: 'Newly Retired', icon: <Edit2 size={20} /> },
-  { id: 'parent', label: 'New Parent', icon: <Baby size={20} /> },
-  { id: 'careerChange', label: 'Career Change', icon: <Briefcase size={20} /> },
-]
-
-const skillLevels = ['Beginner', 'Intermediate', 'Advanced', 'Expert']
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
+import { clearSession, getAuthToken, getCurrentUser, setSession } from '../utils/session'
+import { disconnectSocket } from '../utils/socket'
+import apiClient from '../services/apiClient'
+import {
+  aboutMeOptions,
+  interestOptions,
+  lookingForOptions,
+  skillLevels,
+} from '../features/profile/constants'
 
 export default function Profile() {
+  const navigate = useNavigate()
   const [profileData, setProfileData] = useState({
     name: '',
     email: '',
@@ -55,21 +42,77 @@ export default function Profile() {
   
   const [showAddInterest, setShowAddInterest] = useState(false)
   const [newInterest, setNewInterest] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(true)
   const [showAddCustomAboutMe, setShowAddCustomAboutMe] = useState(false)
   const [newCustomAboutMe, setNewCustomAboutMe] = useState('')
   const fileInputRef = useRef(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     const savedProfile = localStorage.getItem('profileData')
-    if (savedProfile) {
-      setProfileData(JSON.parse(savedProfile))
-    }
-  }, [])
+    const token = getAuthToken()
+    const currentUser = getCurrentUser()
 
-  useEffect(() => {
-    localStorage.setItem('profileData', JSON.stringify(profileData))
-  }, [profileData])
+    if (!token) {
+      navigate('/login')
+      return
+    }
+
+    if (savedProfile) {
+      try {
+        setProfileData(JSON.parse(savedProfile))
+      } catch {
+        // ignore malformed local profile cache
+      }
+    }
+
+    if (currentUser) {
+      setProfileData((prev) => ({
+        ...prev,
+        name: currentUser.name || prev.name,
+        email: currentUser.email || prev.email,
+        phone: currentUser.phoneNumber || prev.phone,
+        dateOfBirth: currentUser.dateOfBirth ? String(currentUser.dateOfBirth).slice(0, 10) : prev.dateOfBirth,
+      }))
+    }
+
+    const loadProfile = async () => {
+      try {
+        const { data } = await apiClient.get('/api/profile')
+        setProfileData((prev) => ({
+          ...prev,
+          name: data.name || prev.name,
+          email: data.email || prev.email,
+          phone: data.phoneNumber || prev.phone,
+          dateOfBirth: data.dateOfBirth ? String(data.dateOfBirth).slice(0, 10) : prev.dateOfBirth,
+          avatar: data.profile?.avatar ?? prev.avatar,
+          lookingFor: data.profile?.lookingFor ?? prev.lookingFor,
+          interests: data.profile?.interests ?? prev.interests,
+          customInterests: data.profile?.customInterests ?? prev.customInterests,
+          aboutMe: data.profile?.aboutMe ?? prev.aboutMe,
+          customAboutMe: data.profile?.customAboutMe ?? prev.customAboutMe,
+          bio: data.profile?.bio ?? prev.bio,
+          skills: data.profile?.skills ?? prev.skills,
+          socialLinks: data.profile?.socialLinks ?? prev.socialLinks,
+        }))
+        setSession({
+          token,
+          user: {
+            _id: data._id,
+            name: data.name,
+            email: data.email,
+            phoneNumber: data.phoneNumber,
+            whatsappNumber: data.whatsappNumber,
+            dateOfBirth: data.dateOfBirth,
+          },
+        })
+      } catch {
+        toast.error('Could not load profile from server')
+      }
+    }
+
+    loadProfile()
+  }, [navigate])
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0]
@@ -172,12 +215,76 @@ export default function Profile() {
     }))
   }
 
-  const handleSave = () => {
-    setIsEditing(false)
-    
-    console.log('Saving profile data:', profileData)
-    
-    localStorage.setItem('profileData', JSON.stringify(profileData))
+  const handleSave = async () => {
+    const token = getAuthToken()
+    if (!token) {
+      navigate('/login')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const { data } = await apiClient.put(
+        '/api/profile',
+        {
+          profile: {
+            avatar: profileData.avatar,
+            lookingFor: profileData.lookingFor,
+            interests: profileData.interests,
+            customInterests: profileData.customInterests,
+            aboutMe: profileData.aboutMe,
+            customAboutMe: profileData.customAboutMe,
+            bio: profileData.bio,
+            skills: profileData.skills,
+            socialLinks: profileData.socialLinks,
+          },
+        }
+      )
+
+      setSession({
+        token,
+        user: {
+          _id: data._id,
+          name: data.name,
+          email: data.email,
+          phoneNumber: data.phoneNumber,
+          whatsappNumber: data.whatsappNumber,
+            dateOfBirth: data.dateOfBirth,
+        },
+      })
+
+      const updatedProfile = {
+        ...profileData,
+        name: data.name || profileData.name,
+        email: data.email || profileData.email,
+        phone: data.phoneNumber || profileData.phone,
+        dateOfBirth: data.dateOfBirth ? String(data.dateOfBirth).slice(0, 10) : profileData.dateOfBirth,
+        avatar: data.profile?.avatar ?? profileData.avatar,
+        lookingFor: data.profile?.lookingFor ?? profileData.lookingFor,
+        interests: data.profile?.interests ?? profileData.interests,
+        customInterests: data.profile?.customInterests ?? profileData.customInterests,
+        aboutMe: data.profile?.aboutMe ?? profileData.aboutMe,
+        customAboutMe: data.profile?.customAboutMe ?? profileData.customAboutMe,
+        bio: data.profile?.bio ?? profileData.bio,
+        skills: data.profile?.skills ?? profileData.skills,
+        socialLinks: data.profile?.socialLinks ?? profileData.socialLinks,
+      };
+      setProfileData(updatedProfile)
+
+      localStorage.setItem('profileData', JSON.stringify(updatedProfile))
+      toast.success('Profile saved')
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save profile')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleLogout = () => {
+    disconnectSocket()
+    clearSession()
+    toast.success('Logged out successfully')
+    navigate('/login')
   }
 
   return (
@@ -189,7 +296,7 @@ export default function Profile() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             className="p-2 rounded-full bg-gray-800 hover:bg-gray-700"
-            onClick={() => window.history.back()}
+            onClick={() => navigate(-1)}
           >
             <ArrowLeft size={24} />
           </motion.button>
@@ -198,9 +305,9 @@ export default function Profile() {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               className="p-2 rounded-full bg-gray-800 hover:bg-gray-700"
-              onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+              onClick={() => setIsEditing(true)}
             >
-              {isEditing ? <Save size={24} /> : <Edit2 size={24} />}
+              <Edit2 size={24} />
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.1 }}
@@ -211,7 +318,6 @@ export default function Profile() {
             </motion.button>
           </div>
         </div>
-
 
         <div className="flex flex-col items-center">
           <div className="relative">
@@ -229,22 +335,20 @@ export default function Profile() {
                 <span className="text-6xl">{profileData.name ? profileData.name[0].toUpperCase() : 'M'}</span>
               )}
             </motion.div>
-            {isEditing && (
-              <motion.label
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="absolute bottom-0 right-0 p-2 rounded-full bg-indigo-600 cursor-pointer"
-              >
-                <Camera size={24} />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  ref={fileInputRef}
-                />
-              </motion.label>
-            )}
+            <motion.label
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              className="absolute bottom-0 right-0 p-2 rounded-full bg-indigo-600 cursor-pointer"
+            >
+              <Camera size={24} />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                ref={fileInputRef}
+              />
+            </motion.label>
           </div>
         </div>
 
@@ -261,9 +365,9 @@ export default function Profile() {
               <input
                 type="text"
                 value={profileData.name}
-                onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                disabled={!isEditing}
-                className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                readOnly
+                disabled
+                className="w-full bg-gray-700 rounded-lg px-4 py-2 opacity-80 cursor-not-allowed"
               />
             </div>
             <div>
@@ -271,9 +375,9 @@ export default function Profile() {
               <input
                 type="email"
                 value={profileData.email}
-                onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
-                disabled={!isEditing}
-                className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                readOnly
+                disabled
+                className="w-full bg-gray-700 rounded-lg px-4 py-2 opacity-80 cursor-not-allowed"
               />
             </div>
             <div>
@@ -281,9 +385,9 @@ export default function Profile() {
               <input
                 type="tel"
                 value={profileData.phone}
-                onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
-                disabled={!isEditing}
-                className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                readOnly
+                disabled
+                className="w-full bg-gray-700 rounded-lg px-4 py-2 opacity-80 cursor-not-allowed"
               />
             </div>
             <div>
@@ -291,9 +395,9 @@ export default function Profile() {
               <input
                 type="date"
                 value={profileData.dateOfBirth}
-                onChange={(e) => setProfileData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-                disabled={!isEditing}
-                className="w-full bg-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                readOnly
+                disabled
+                className="w-full bg-gray-700 rounded-lg px-4 py-2 opacity-80 cursor-not-allowed"
               />
             </div>
           </div>
@@ -312,13 +416,12 @@ export default function Profile() {
                 key={option.id}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => isEditing && toggleLookingFor(option)}
-                disabled={!isEditing}
+                onClick={() => toggleLookingFor(option)}
                 className={`p-4 rounded-lg border-2 border-dashed flex items-center gap-2
                   ${profileData.lookingFor.includes(option.id)
-                    ? 'border-indigo-500 bg-indigo-500/20'
+                    ? 'border-green-500 bg-green-500/20'
                     : 'border-gray-700 hover:border-gray-600'
-                  } ${!isEditing && 'cursor-default'}`}
+                  }`}
               >
                 <span className="text-xl">{option.icon}</span>
                 <span>{option.label}</span>
@@ -344,38 +447,33 @@ export default function Profile() {
                   <select
                     value={profileData.skills[interest]}
                     onChange={(e) => updateSkillLevel(interest, e.target.value)}
-                    disabled={!isEditing}
                     className="bg-gray-600 rounded-lg px-2 py-1"
                   >
                     {skillLevels.map((level) => (
                       <option key={level} value={level}>{level}</option>
                     ))}
                   </select>
-                  {isEditing && (
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => removeInterest(interest)}
-                      className="text-red-500 hover:text-red-400"
-                    >
-                      <Trash2 size={20} />
-                    </motion.button>
-                  )}
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => removeInterest(interest)}
+                    className="text-red-500 hover:text-red-400"
+                  >
+                    <Trash2 size={20} />
+                  </motion.button>
                 </div>
               </div>
             ))}
           </div>
-          {isEditing && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowAddInterest(true)}
-              className="w-full bg-indigo-600 rounded-lg px-4 py-2 mt-4 flex items-center justify-center gap-2"
-            >
-              <Plus size={20} />
-              Add Interest
-            </motion.button>
-          )}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowAddInterest(true)}
+            className="w-full bg-indigo-600 rounded-lg px-4 py-2 mt-4 flex items-center justify-center gap-2"
+          >
+            <Plus size={20} />
+            Add Interest
+          </motion.button>
 
           
           <AnimatePresence>
@@ -454,13 +552,12 @@ export default function Profile() {
                 key={option.id}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => isEditing && toggleAboutMe(option.id)}
-                disabled={!isEditing}
+                onClick={() => toggleAboutMe(option.id)}
                 className={`p-4 rounded-lg border-2 border-dashed flex items-center gap-2
                   ${profileData.aboutMe.includes(option.id)
-                    ? 'border-indigo-500 bg-indigo-500/20'
+                    ? 'border-green-500 bg-green-500/20'
                     : 'border-gray-700 hover:border-gray-600'
-                  } ${!isEditing && 'cursor-default'}`}
+                  }`}
               >
                 <span className="text-xl">{option.icon}</span>
                 <span>{option.label}</span>
@@ -471,30 +568,26 @@ export default function Profile() {
             {profileData.customAboutMe.map((item, index) => (
               <div key={index} className="flex items-center justify-between bg-gray-700 rounded-lg p-2">
                 <span>{item}</span>
-                {isEditing && (
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => removeCustomAboutMe(item)}
-                    className="text-red-500 hover:text-red-400"
-                  >
-                    <Trash2 size={20} />
-                  </motion.button>
-                )}
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => removeCustomAboutMe(item)}
+                  className="text-red-500 hover:text-red-400"
+                >
+                  <Trash2 size={20} />
+                </motion.button>
               </div>
             ))}
           </div>
-          {isEditing && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowAddCustomAboutMe(true)}
-              className="w-full bg-indigo-600 rounded-lg px-4 py-2 mt-4 flex items-center justify-center gap-2"
-            >
-              <Plus size={20} />
-              Add Custom About Me
-            </motion.button>
-          )}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowAddCustomAboutMe(true)}
+            className="w-full bg-indigo-600 rounded-lg px-4 py-2 mt-4 flex items-center justify-center gap-2"
+          >
+            <Plus size={20} />
+            Add Custom About Me
+          </motion.button>
 
           
           <AnimatePresence>
@@ -558,7 +651,6 @@ export default function Profile() {
               value={profileData.bio}
               onChange={(e) => setProfileData(prev => ({ ...prev, bio: e.target.value }))}
               placeholder="Introduce yourself to others on Meetup. This can be short and simple."
-              disabled={!isEditing}
               className="w-full h-32 bg-gray-700 rounded-lg p-4 resize-none focus:ring-2 focus:ring-indigo-600 focus:outline-none"
             />
           </motion.div>
@@ -585,13 +677,29 @@ export default function Profile() {
                   value={link}
                   onChange={(e) => updateSocialLink(platform, e.target.value)}
                   placeholder={`${platform.charAt(0).toUpperCase() + platform.slice(1)} URL`}
-                  disabled={!isEditing}
                   className="flex-1 bg-gray-700 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
                 />
               </div>
             ))}
           </div>
         </motion.section>
+
+        <div className="flex flex-wrap justify-center gap-3 pt-2">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 px-4 py-2 rounded-lg inline-flex items-center gap-2"
+          >
+            <Save size={18} />
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
+          >
+            Logout
+          </button>
+        </div>
       </div>
     </div>
   )

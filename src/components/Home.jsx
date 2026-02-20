@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useSpring, useAnimation } from 'framer-motion';
 import { Menu, X, MapPin, ChevronLeft, ChevronRight, Download,MessageCircle , QrCode, Users, Compass, Coffee, Music, Book, Headphones, Camera } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import Chatbot from './Chatbot';
 import a1 from "../assets/images/a1.jpg"
 import a2 from "../assets/images/a2.jpg"
@@ -80,6 +80,7 @@ const blogPosts = [
 ];
 
 export default function Home() {
+  const location = useLocation();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const controls = useAnimation();
@@ -130,6 +131,17 @@ export default function Home() {
 
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!location.hash) return;
+    const sectionId = location.hash.replace('#', '');
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    const navOffset = 84;
+    const y = section.getBoundingClientRect().top + window.pageYOffset - navOffset;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  }, [location.hash]);
 
 
   return (
@@ -276,7 +288,7 @@ export default function Home() {
 
       
 
-<section className="py-16">
+<section id="explore" className="py-16">
         <h2 className="text-3xl font-bold text-center mb-8">Explore Your Interests</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {[
@@ -354,11 +366,14 @@ export default function Home() {
             transition={{ delay: 0.4 }}
             className="flex justify-center"
           >
-            <Link to="/events">
-            <button className="px-8 py-3 bg-indigo-600 text-white rounded-full text-lg font-semibold hover:bg-indigo-700 transition-colors">
+            <a
+              href="https://chat.whatsapp.com/HLOx1Kq79Ck3IHZWXfNZHm"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-8 py-3 bg-indigo-600 text-white rounded-full text-lg font-semibold hover:bg-indigo-700 transition-colors"
+            >
               Join Now
-            </button>
-            </Link>
+            </a>
           </motion.div>
         </div>
       </section>
@@ -482,7 +497,7 @@ export default function Home() {
           <div className="p-6">
             <h3 className="text-xl font-semibold mb-2">{post.title}</h3>
             <p className="text-gray-600 mb-4">Discover insights and tips tailored for introverts...</p>
-            <a href="#" className="text-indigo-600 hover:underline">Read More</a>
+            <a href="/#blog" className="text-indigo-600 hover:underline">Read More</a>
           </div>
         </motion.div>
       ))}

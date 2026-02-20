@@ -1,222 +1,362 @@
+/* eslint-env node */
 import express from 'express';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
-import nodemailer from 'nodemailer';
-import jwt from 'jsonwebtoken';
 import cors from 'cors';
+import http from 'http';
+import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
+import env, { validateStartupEnv } from './config/env.js';
+import authRoutes from './routes/auth.js';
+import eventRoutes from './routes/events.js';
+import notificationRoutes from './routes/notifications.js';
+import webhookRoutes from './routes/webhooks.js';
+import { getUserRoom, setIO } from './services/socketService.js';
+import communityRoutes from './routes/community.js';
+import { getPgPool, hasPostgresConfig } from './config/pg.js';
+import { registerCommunitySocketHandlers } from './services/communitySocket.js';
 
-import User from './models/User.js';
-import events from './models/events.js';
-
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '.env') });
+validateStartupEnv();
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: [/^https?:\/\/localhost(:\d+)?$/],
+    methods: ['GET', 'POST'],
+  },
+});
+setIO(io);
 
-// Add CORS middleware
-app.use(cors());
-app.use(express.json());
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowed = !origin || /^https?:\/\/localhost(:\d+)?$/.test(origin);
+    callback(null, allowed);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  optionsSuccessStatus: 204,
+};
 
-// Improved MongoDB connection with error handling
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch((err) => {
-  console.error('MongoDB connection error:', err);
-  process.exit(1); // Exit if cannot connect to database
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '2mb' }));
+
+if (env.mongoUri) {
+  mongoose.connect(env.mongoUri)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch((err) => {
+      console.error('MongoDB connection error:', err);
+      globalThis.process.exit(1);
+    });
+}
+
+if (hasPostgresConfig()) {
+  const pgPool = getPgPool();
+  pgPool.query('SELECT 1')
+    .then(() => console.log('Connected to PostgreSQL'))
+    .catch((err) => {
+      console.error('PostgreSQL connection error:', err.message);
+      globalThis.process.exit(1);
+    });
+}
+
+io.use((socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      console.warn('[socket] auth failed: token missing');
+      return next(new Error('Unauthorized socket'));
+    }
+    const decoded = jwt.verify(token, env.jwtSecret);
+    socket.userId = decoded.userId;
+    console.log('[socket] auth ok:', String(socket.userId));
+    next();
+  } catch (error) {
+    console.warn('[socket] auth failed:', error?.message || 'invalid token');
+    next(new Error('Unauthorized socket'));
+  }
 });
 
-// Add error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+io.on('connection', (socket) => {
+  console.log('[socket] connected:', socket.id, 'user:', String(socket.userId));
+  socket.join(getUserRoom(socket.userId));
+  registerCommunitySocketHandlers(io, socket);
+  socket.on('disconnect', (reason) => {
+    console.log('[socket] disconnected:', socket.id, 'reason:', reason);
   });
 });
 
-// Add a test route to verify server is running
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Server is running properly' });
 });
 
-// Email configuration
+app.use('/api', authRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/webhooks', webhookRoutes);
+app.use('/api/community', communityRoutes);
 
-var transporter = nodemailer.createTransport
-({
-    service: "gmail",
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
-
-
-async function sendMail(transporter, mailOptions)
-{
-    try{
-        await transporter.sendMail(mailOptions)
-        .then(() => {
-            console.log("Email Sent !");
-            return true;
-        })
-        .catch((e) => {
-            console.log(e);
-            return false;
-        })
+function extractAskyText(payload) {
+  const seen = new Set();
+  const pick = (value, depth = 0) => {
+    if (value == null || depth > 4) return '';
+    if (typeof value === 'string') {
+      const text = value.trim();
+      if (!text) return '';
+      // Avoid returning obvious metadata-only values.
+      if (/^[A-Za-z0-9_-]{24,}$/.test(text) && !/\s/.test(text)) return '';
+      return text;
     }
-    catch(error)
-    {
-        return false;
+    if (typeof value === 'number' || typeof value === 'boolean') return '';
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = pick(item, depth + 1);
+        if (found) return found;
+      }
+      return '';
     }
+    if (typeof value === 'object') {
+      if (seen.has(value)) return '';
+      seen.add(value);
+
+      const priorityKeys = ['content', 'response', 'answer', 'text', 'message', 'output', 'result'];
+      for (const key of priorityKeys) {
+        if (Object.hasOwn(value, key)) {
+          const found = pick(value[key], depth + 1);
+          if (found) return found;
+        }
+      }
+
+      for (const key of Object.keys(value)) {
+        const found = pick(value[key], depth + 1);
+        if (found) return found;
+      }
+    }
+    return '';
+  };
+
+  return pick(payload);
 }
 
-// Signup route
-app.post('/api/signup', async (req, res) => {
+// Ask AI chat - Asky -> Gemini -> OpenAI fallback
+app.post('/api/chat', async (req, res) => {
+  const sendJson = (status, body) => {
+    if (!res.headersSent) res.status(status).json(body);
+  };
+
   try {
-    const { name, email, password } = req.body;
-    
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+    const { messages } = req.body || {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return sendJson(400, { message: 'messages array is required' });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const openaiMessages = messages.map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content,
+    }));
 
-    // Create new user
-    const user = new User({
-      name,
-      email,
-      password: hashedPassword
+    const askyKey = env.askyApiKey;
+    const askyAuthToken = env.askyAuthToken;
+    if (askyKey || askyAuthToken) {
+      const endpoint = env.askyChatEndpoint
+        || `${env.askyBaseUrl.replace(/\/$/, '')}/chat/completions`;
+      const isAskyChatWebEndpoint = /askaichat\.app\/api\/chat\/message\/send/i.test(endpoint);
+      const lastUserMessage = [...openaiMessages].reverse().find((m) => m.role === 'user')?.content || '';
+
+      if (isAskyChatWebEndpoint && !askyAuthToken) {
+        if (!env.geminiApiKey && !env.openAiApiKey) {
+          return sendJson(502, { message: 'ASKY_AUTH_TOKEN is required for askaichat.app endpoint' });
+        }
+      }
+
+      const authHeaderValue = askyAuthToken || `Bearer ${askyKey}`;
+      try {
+        const requestBody = isAskyChatWebEndpoint
+          ? {
+              message: lastUserMessage,
+              model: env.askyModel || 'gpt-5-nano',
+              temporaryChat: env.askyTemporaryChat,
+              ...(env.askyModelVersion ? { modelVersion: env.askyModelVersion } : {}),
+            }
+          : {
+              model: env.askyModel,
+              messages: openaiMessages,
+            };
+
+        const askyResponse = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/plain, */*',
+            authorization: authHeaderValue,
+            ...(isAskyChatWebEndpoint
+              ? {
+                  origin: 'https://askaichat.app',
+                  referer: 'https://askaichat.app/chat',
+                  'user-agent': 'Mozilla/5.0',
+                }
+              : {}),
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const askyRaw = await askyResponse.text();
+        let askyData = {};
+        try {
+          askyData = askyRaw ? JSON.parse(askyRaw) : {};
+        } catch {
+          askyData = { raw: askyRaw };
+        }
+
+        if (askyResponse.ok) {
+          const content = extractAskyText(askyData);
+          if (content) {
+            return sendJson(200, { content });
+          }
+
+          if (!env.geminiApiKey && !env.openAiApiKey) {
+            return sendJson(502, {
+              message: `Asky returned empty response (status ${askyResponse.status}). Check ASKY_AUTH_TOKEN and endpoint format.`,
+              askyPreview: askyRaw.slice(0, 300),
+            });
+          }
+        }
+
+        const askyMessage = askyData?.error?.message
+          || askyData?.message
+          || askyResponse.statusText
+          || 'Asky request failed';
+
+        if (!env.geminiApiKey && !env.openAiApiKey) {
+          return sendJson(502, { message: `Asky request failed: ${askyMessage}` });
+        }
+      } catch (askyError) {
+        if (!env.geminiApiKey && !env.openAiApiKey) {
+          return sendJson(502, { message: `Asky network error: ${askyError.message}` });
+        }
+      }
+    }
+
+    const geminiKey = env.geminiApiKey;
+    if (geminiKey) {
+      // Use Gemini (free API) - only user/model, non-empty text
+      const contents = messages
+        .filter((m) => m.content && String(m.content).trim())
+        .map((m) => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: String(m.content).trim() }],
+        }));
+
+      if (contents.length === 0) {
+        return sendJson(400, { message: 'No valid messages to send' });
+      }
+
+      // Try current Gemini model names; Google AI Studio may expose different models
+      const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+      const apiVersions = ['v1beta', 'v1'];
+      let lastError = '';
+      for (const version of apiVersions) {
+        for (const model of modelsToTry) {
+          const response = await fetch(
+          `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents }),
+          }
+        );
+        const body = await response.text();
+        if (response.ok) {
+          const data = JSON.parse(body);
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+          const blockReason = data.candidates?.[0]?.finishReason;
+          if (blockReason && blockReason !== 'STOP' && blockReason !== 'MAX_TOKENS') {
+            return sendJson(502, { message: 'Response was blocked or unavailable' });
+          }
+          return sendJson(200, { content: text || '' });
+        }
+        try {
+          const err = JSON.parse(body);
+          lastError = err.error?.message || err.message || body;
+        } catch {
+          lastError = body || response.statusText;
+        }
+        if (!lastError.includes('not found') && !lastError.includes('is not supported')) break;
+        }
+      }
+      const isQuotaError = /quota|exceeded|rate.limit|retry\s+in/i.test(lastError);
+      if (isQuotaError && env.openAiApiKey) {
+        // Fall through to OpenAI when Gemini quota is exceeded
+      } else if (isQuotaError) {
+        return sendJson(429, {
+          message: 'Gemini free tier quota exceeded. Wait a minute and try again, or add OPENAI_API_KEY to .env to use OpenAI when quota is exceeded. See https://ai.google.dev/gemini-api/docs/rate-limits',
+        });
+      } else {
+        return sendJson(502, { message: lastError || 'Gemini request failed. Check your API key at https://aistudio.google.com/apikey' });
+      }
+    }
+
+    // OpenAI (primary if no Gemini key, or fallback when Gemini quota exceeded)
+    const apiKey = env.openAiApiKey;
+    if (!apiKey) {
+      return sendJson(500, {
+        message: 'No chat API key configured. Add ASKY_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY to backend .env',
+      });
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: openaiMessages,
+      }),
     });
 
-    await user.save();
-    res.status(201).json({ message: 'User created successfully' });
-  }
-  catch (error) 
-  {
-    console.log(error)
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Login route
-app.post('/api/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    // Find user
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'User not found' });
+    const rawBody = await response.text();
+    if (!response.ok) {
+      let errMessage = response.statusText || 'OpenAI request failed';
+      try {
+        const err = JSON.parse(rawBody);
+        errMessage = err.error?.message || errMessage;
+      } catch { /* ignore */ }
+      return sendJson(response.status >= 500 ? 502 : response.status, { message: errMessage });
     }
 
-    // Check password
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(400).json({ message: 'Invalid password' });
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      return sendJson(502, { message: 'Invalid response from OpenAI' });
     }
-
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // OTP valid for 10 minutes
-
-    // Save OTP to user
-    user.otp = otp;
-    user.otpExpiry = otpExpiry;
-    await user.save();
-
-    // Send OTP email
-    var mailOptions = {
-    
-      from: {
-          name: "Introvert - Login OTP",
-          address: process.env.EMAIL_USER
-      },
-      to: email,
-      subject : "LOGIN OTP",
-      html: `<pre>Your OTP is : ${otp}</pre>`,
-  
-    }
-  
-    await sendMail(transporter, mailOptions);
-
-    res.json({ message: 'OTP sent to your email' });
+    const content = data.choices?.[0]?.message?.content ?? '';
+    return sendJson(200, { content });
   } catch (error) {
-    console.log(error)
-    res.status(500).json({ message: error.message });
+    console.error('Chat API error:', error);
+    if (!res.headersSent) res.status(500).json({ message: error.message || 'Chat failed' });
   }
 });
 
-// Verify OTP route
-app.post('/api/verify-otp', async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'User not found' });
-    }
-
-    if (user.otp !== otp || Date.now() > user.otpExpiry) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
-    }
-
-    // Mark user as verified
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpiry = undefined;
-    await user.save();
-
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
-
-    res.json({ token });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  if (res.headersSent) {
+    return next(err);
   }
+  res.status(500).json({
+    message: 'Something went wrong!',
+    error: env.nodeEnv === 'development' ? err.message : undefined,
+  });
 });
 
-// Get user profile route (protected)
-app.get('/api/profile', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId).select('-password -otp -otpExpiry');
-    
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-app.post('/api/event-save', async (req, res) => {
-  try {
-      const event = new events(req.body);
-      await event.save();
-      res.status(201).json({ message: 'DONE', event });
-  } catch (error) {
-      res.status(400).json({ error: error.message });
-  }
-});
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
+const port = env.port;
+server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
-}); 
+});
 

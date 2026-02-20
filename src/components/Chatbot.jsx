@@ -1,9 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Send, Bot, User } from 'lucide-react';
-
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI('AIzaSyDy3vB5PXwX0siPaoj9QJmUb0Oql5Fer88');
+import apiClient from '../services/apiClient';
 
 function ChatBot() {
   const [messages, setMessages] = useState([]);
@@ -30,15 +27,15 @@ function ChatBot() {
     setIsLoading(true);
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-      const result = await model.generateContent(input);
-      const response = await result.response;
-      const text = response.text();
+      const { data } = await apiClient.post('/api/chat', {
+        messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content })),
+      });
 
-      setMessages(prev => [...prev, { role: 'assistant', content: text }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: data.content ?? '' }]);
     } catch (error) {
       console.error('Error:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
+      const friendlyMessage = error.message || 'Sorry, I encountered an error. Please try again.';
+      setMessages(prev => [...prev, { role: 'assistant', content: friendlyMessage }]);
     }
 
     setIsLoading(false);
