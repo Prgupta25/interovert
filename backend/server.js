@@ -24,38 +24,17 @@ validateStartupEnv();
 
 const app = express();
 const server = http.createServer(app);
-const localhostOriginRegex = /^https?:\/\/localhost(:\d+)?$/;
-const vercelPreviewOriginRegex = /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/;
-const normalizedFrontendUrl = (env.frontendUrl || '').replace(/\/$/, '');
 
-function isAllowedOrigin(origin) {
-  if (!origin) return true;
-  const normalizedOrigin = origin.replace(/\/$/, '');
-  return localhostOriginRegex.test(normalizedOrigin)
-    || vercelPreviewOriginRegex.test(normalizedOrigin)
-    || (normalizedFrontendUrl && normalizedOrigin === normalizedFrontendUrl);
-}
-
-const io = new Server(server, {
-  cors: {
-    origin: (origin, callback) => {
-      callback(null, isAllowedOrigin(origin));
-    },
-    methods: ['GET', 'POST'],
-  },
+app.use("*", (req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "*");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, PUT, POST, DELETE, OPTIONS",
+  );
+  next();
 });
-setIO(io);
 
-const corsOptions = {
-  origin: (origin, callback) => {
-    callback(null, isAllowedOrigin(origin));
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  optionsSuccessStatus: 204,
-};
-
-app.use(cors(corsOptions));
 app.use(express.json({ limit: '2mb' }));
 
 if (env.mongoUri) {
