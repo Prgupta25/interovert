@@ -20,6 +20,7 @@ const env = {
   get askyModelVersion() { return globalThis.process.env.ASKY_MODEL_VERSION || ''; },
   get askyTemporaryChat() { return globalThis.process.env.ASKY_TEMPORARY_CHAT === 'true'; },
   get openAiApiKey() { return globalThis.process.env.OPENAI_API_KEY || ''; },
+  get frontendUrl() { return globalThis.process.env.FRONTEND_URL || ''; },
   get enableWhatsappNotifications() { return globalThis.process.env.ENABLE_WHATSAPP_NOTIFICATIONS === 'true'; },
   get twilioAccountSid() { return globalThis.process.env.TWILIO_ACCOUNT_SID || ''; },
   get twilioAuthToken() { return globalThis.process.env.TWILIO_AUTH_TOKEN || ''; },

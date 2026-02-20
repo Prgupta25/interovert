@@ -24,9 +24,23 @@ validateStartupEnv();
 
 const app = express();
 const server = http.createServer(app);
+const localhostOriginRegex = /^https?:\/\/localhost(:\d+)?$/;
+const vercelPreviewOriginRegex = /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/;
+const normalizedFrontendUrl = (env.frontendUrl || '').replace(/\/$/, '');
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  const normalizedOrigin = origin.replace(/\/$/, '');
+  return localhostOriginRegex.test(normalizedOrigin)
+    || vercelPreviewOriginRegex.test(normalizedOrigin)
+    || (normalizedFrontendUrl && normalizedOrigin === normalizedFrontendUrl);
+}
+
 const io = new Server(server, {
   cors: {
-    origin: [/^https?:\/\/localhost(:\d+)?$/],
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
     methods: ['GET', 'POST'],
   },
 });
@@ -34,8 +48,7 @@ setIO(io);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowed = !origin || /^https?:\/\/localhost(:\d+)?$/.test(origin);
-    callback(null, allowed);
+    callback(null, isAllowedOrigin(origin));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
