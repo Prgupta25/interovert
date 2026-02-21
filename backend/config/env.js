@@ -11,6 +11,8 @@ const env = {
   get jwtSecret() { return globalThis.process.env.JWT_SECRET || ''; },
   get emailUser() { return globalThis.process.env.EMAIL_USER || ''; },
   get emailPass() { return globalThis.process.env.EMAIL_PASS || ''; },
+  get resendApiKey() { return globalThis.process.env.RESEND_API_KEY || ''; },
+  get emailFrom() { return globalThis.process.env.EMAIL_FROM || globalThis.process.env.EMAIL_USER || 'Introvert <onboarding@resend.dev>'; },
   get geminiApiKey() { return globalThis.process.env.GEMINI_API_KEY || ''; },
   get askyApiKey() { return globalThis.process.env.ASKY_API_KEY || ''; },
   get askyBaseUrl() { return globalThis.process.env.ASKY_BASE_URL || 'https://api.asky.ai/v1'; },
