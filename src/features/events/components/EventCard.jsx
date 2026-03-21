@@ -1,41 +1,71 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin } from 'lucide-react';
+import { Calendar, MapPin, Users, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getDisplayEventPhotoUrl } from '../../../utils/eventImage';
 
-export default function EventCard({ event }) {
+export default function EventCard({ event, index = 0 }) {
+  const photoSrc = getDisplayEventPhotoUrl(event.photo, 900) || '/placeholder.svg?height=200&width=400';
+  const dateStr = new Date(event.datetime).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
+    <motion.article
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.02 }}
-      className="bg-gray-800 rounded-xl overflow-hidden"
+      transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.35) }}
+      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-700/50 bg-gradient-to-b from-zinc-800/40 to-zinc-900/90 shadow-lg shadow-black/30 ring-1 ring-white/[0.04] transition-shadow duration-300 hover:border-zinc-600/60 hover:shadow-xl hover:shadow-indigo-950/20 hover:ring-indigo-500/10"
     >
-      <img
-        src={event.photo || '/placeholder.svg?height=200&width=400'}
-        alt={event.name}
-        className="w-full h-48 object-cover"
-      />
-      <div className="p-4">
-        <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">
-          <Calendar size={16} />
-          {new Date(event.datetime).toLocaleDateString()}
+      <Link to={`/event/${event._id}`} className="relative block aspect-[16/10] overflow-hidden bg-zinc-950">
+        <img
+          src={photoSrc}
+          alt=""
+          decoding="async"
+          loading="lazy"
+          className="h-full w-full object-cover object-center transition duration-300 group-hover:brightness-105 [transform:translateZ(0)]"
+        />
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/20 to-transparent"
+          aria-hidden
+        />
+        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
+          <time className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-xs font-medium text-zinc-200 backdrop-blur-sm ring-1 ring-white/10">
+            <Calendar className="h-3.5 w-3.5 text-indigo-300" />
+            {dateStr}
+          </time>
+          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600/90 px-2.5 py-1 text-xs font-semibold text-white shadow-md backdrop-blur-sm">
+            <Users className="h-3.5 w-3.5 opacity-90" />
+            {event.participantCount ?? 0}
+          </span>
         </div>
-        <h3 className="text-xl font-semibold mb-2">{event.name}</h3>
-        <p className="text-sm text-indigo-300 mb-2">Event Creator: {event.eventCreatorLabel}</p>
-        <div className="flex items-center gap-2 text-gray-400 text-sm mb-4">
-          <MapPin size={16} />
-          {event.venue}
+      </Link>
+
+      <div className="flex flex-1 flex-col p-5">
+        <h3 className="line-clamp-2 text-lg font-semibold leading-snug tracking-tight text-white">
+          <Link to={`/event/${event._id}`} className="transition hover:text-indigo-200">
+            {event.name}
+          </Link>
+        </h3>
+        <p className="mt-2 text-xs font-medium text-indigo-300/90">
+          <span className="text-zinc-500">Host · </span>
+          {event.eventCreatorLabel}
+        </p>
+        <div className="mt-3 flex gap-2 text-sm text-zinc-400">
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400/80" aria-hidden />
+          <p className="line-clamp-2 leading-relaxed">{event.venue}</p>
         </div>
-        <p className="text-xs text-gray-400 mb-3">Participants: {event.participantCount || 0}</p>
-        <p className="text-gray-300 mb-4 line-clamp-2">{event.description}</p>
+        <p className="mt-3 line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-500">{event.description}</p>
         <Link
           to={`/event/${event._id}`}
-          className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-900/30 transition hover:from-indigo-500 hover:to-violet-500"
         >
-          Read More
+          View event
+          <ArrowUpRight className="h-4 w-4 opacity-90" />
         </Link>
       </div>
-    </motion.div>
+    </motion.article>
   );
 }

@@ -1,83 +1,142 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, useScroll, useTransform, useSpring, useAnimation } from 'framer-motion';
-import { Menu, X, MapPin, ChevronLeft, ChevronRight, Download,MessageCircle , QrCode, Users, Compass, Coffee, Music, Book, Headphones, Camera } from 'lucide-react';
+import { motion, useAnimation } from 'framer-motion';
+import {
+  MapPin,
+  Download,
+  MessageCircle,
+  QrCode,
+  Users,
+  Compass,
+  Coffee,
+  Headphones,
+  ArrowRight,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import Chatbot from './Chatbot';
-import a1 from "../assets/images/a1.jpg"
-import a2 from "../assets/images/a2.jpg"
-import a3 from "../assets/images/a3.jpg"
-import a4 from "../assets/images/a4.jpg"
-import a5 from "../assets/images/a7.jpg"
-import a6 from "../assets/images/a8.jpg"
-import a7 from "../assets/images/a9.jpg"
-import a8 from "../assets/images/a10.jpg"
-import a9 from "../assets/images/b1.jpg"
-import a10 from "../assets/images/b2.jpg"
-import a11 from "../assets/images/b3.jpg"
-import p1 from "../assets/images/p1.jpg"
-import p2 from "../assets/images/p2.jpg"
-import p3 from "../assets/images/p3.jpg"
-import p4 from "../assets/images/p4.jpg"
-import p5 from "../assets/images/p5.jpg"
-import p6 from "../assets/images/p7.jpg"
-import b1 from "../assets/images/b7.jpg"
-import b2 from "../assets/images/b8.jpg"
-import b3 from "../assets/images/b5.jpg"
-import b4 from "../assets/images/b6.jpg"
-import b5 from "../assets/images/c3.jpg"
+import a2 from '../assets/images/a2.jpg';
+import a4 from '../assets/images/a4.jpg';
+import a5 from '../assets/images/a5.jpg';
+import a6 from '../assets/images/a6.jpg';
+import a7 from '../assets/images/a7.jpg';
+import a8 from '../assets/images/a8.jpg';
+import a9 from '../assets/images/a9.jpg';
+import a10 from '../assets/images/a10.jpg';
+import a11 from '../assets/images/b3.jpg';
+import p1 from '../assets/images/p1.jpg';
+import p2 from '../assets/images/p2.jpg';
+import p3 from '../assets/images/p3.jpg';
+import p4 from '../assets/images/p4.jpg';
+import p5 from '../assets/images/p5.jpg';
+import p6 from '../assets/images/p7.jpg';
+import b1 from '../assets/images/b7.jpg';
+import b2 from '../assets/images/b8.jpg';
+import b3 from '../assets/images/b5.jpg';
+import b4 from '../assets/images/b6.jpg';
+import b5 from '../assets/images/c3.jpg';
 
-
+/** Hero backgrounds: warm meetups, quiet nature, small-group connection (zinc + indigo theme) */
 const heroImages = [
-  a1,
-  a2,
-  a3
+  'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=1920&q=82&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1920&q=82&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1920&q=82&auto=format&fit=crop',
 ];
 
+const heroSlides = [
+  {
+    kicker: 'Your space to belong',
+    line: 'Connect with fellow',
+    highlight: 'introverts',
+    sub: 'Find people who get your pace—through events built for real conversation, not small talk.',
+  },
+  {
+    kicker: 'Low-pressure discovery',
+    line: 'Explore quiet',
+    highlight: 'adventures',
+    sub: 'Cafés, walks, games, and gatherings chosen with introverts in mind.',
+  },
+  {
+    kicker: 'On your terms',
+    line: 'Grow at your',
+    highlight: 'own pace',
+    sub: 'Host or join events, chat when you’re ready, and build connections that feel authentic.',
+  },
+];
 
 const features = [
   {
-    title: "Discover Your Tribe",
-    description: "Find like-minded introverts who share your interests 🌟",
+    title: 'Discover your tribe',
+    description: 'Match with people who share your interests—without the noise of typical social apps.',
     image: a4,
-    icon: <Users className="w-8 h-8 text-indigo-500" />
+    icon: Users,
   },
   {
-    title: "Quiet Spaces",
-    description: "Explore cozy, low-key meetup spots perfect for introverts 🍵",
+    title: 'Quiet spaces',
+    description: 'Browse cozy venues and low-key meetups designed for comfortable socializing.',
     image: a5,
-    icon: <Coffee className="w-8 h-8 text-indigo-500" />
+    icon: Coffee,
   },
   {
-    title: "Mindful Connections",
-    description: "Build meaningful relationships at your own pace 🤝",
+    title: 'Mindful connections',
+    description: 'Message, RSVP, and show up when it feels right. No pressure to perform.',
     image: a6,
-    icon: <Headphones className="w-8 h-8 text-indigo-500" />
+    icon: Headphones,
   },
   {
-    title: "Recharge Zones",
-    description: "Find solitude when you need it, even in group settings 🧘",
+    title: 'Room to recharge',
+    description: 'Know what to expect upfront—so you can balance people time with downtime.',
     image: a7,
-    icon: <Compass className="w-8 h-8 text-indigo-500" />
-  }
+    icon: Compass,
+  },
 ];
 
+const interests = [
+  { name: 'Book club', image: b1 },
+  { name: 'Quiet cafés', image: b2 },
+  { name: 'Nature walks', image: b3 },
+  { name: 'Art & galleries', image: a2 },
+  { name: 'Mindful moments', image: a7 },
+  { name: 'Board games', image: a11 },
+];
+
+const tribes = [
+  { name: 'Silent book club', image: b4 },
+  { name: 'Introvert hikers', image: b3 },
+  { name: 'Quiet game night', image: a9 },
+  { name: 'Mindful art', image: a9 },
+  { name: 'Film & discussion', image: a10 },
+  { name: 'Calm tech meetups', image: a11 },
+];
 
 const destinations = [
-  { name: "Kyoto", image: p1 },
-  { name: "Edinburgh", image: p2 },
-  { name: "Vancouver", image: p3 },
-  { name: "Copenhagen", image: p4 },
-  { name: "Wellington", image: p5 },
-  { name: "Reykjavik", image: p6 }
+  { name: 'Kyoto', image: p1 },
+  { name: 'Edinburgh', image: p2 },
+  { name: 'Vancouver', image: p3 },
+  { name: 'Copenhagen', image: p4 },
+  { name: 'Wellington', image: p5 },
+  { name: 'Reykjavík', image: p6 },
 ];
-
 
 const blogPosts = [
-  { title: "The Introvert's Guide to Meaningful Connections", image: a8 },
-  { title: "Embracing Solitude: The Power of Alone Time", image: a9 },
-  { title: "Navigating Social Situations as an Introvert", image: a10 },
-  { title: "The Art of Deep Conversations in a Noisy World", image: a11 }
+  { title: "The introvert's guide to meaningful connections", image: a8 },
+  { title: 'Embracing solitude: the power of alone time', image: a9 },
+  { title: 'Navigating social situations as an introvert', image: a10 },
+  { title: 'Deep conversations in a noisy world', image: a11 },
 ];
+
+function SectionHeading({ eyebrow, title, subtitle, className = '' }) {
+  return (
+    <div className={`mx-auto mb-12 max-w-3xl text-center ${className}`}>
+      {eyebrow ? (
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-400">{eyebrow}</p>
+      ) : null}
+      <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">{title}</h2>
+      {subtitle ? <p className="mt-3 text-base leading-relaxed text-zinc-400">{subtitle}</p> : null}
+    </div>
+  );
+}
 
 export default function Home() {
   const location = useLocation();
@@ -85,11 +144,24 @@ export default function Home() {
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const controls = useAnimation();
   const floatingTextRef = useRef(null);
+  const destinationsScrollRef = useRef(null);
 
-  const toggleChatbot = () => {
-    setIsChatbotOpen(!isChatbotOpen);
+  const scrollDestinations = (direction) => {
+    const el = destinationsScrollRef.current;
+    if (!el) return;
+    const firstCard = el.querySelector('[data-destination-card]');
+    const gap = 20; // matches gap-5
+    const step = firstCard ? firstCard.getBoundingClientRect().width + gap : Math.min(340, el.clientWidth * 0.9);
+    el.scrollBy({ left: direction * step, behavior: 'smooth' });
   };
 
+  const scrollToId = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const navOffset = 84;
+    const y = el.getBoundingClientRect().top + window.pageYOffset - navOffset;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  };
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -97,494 +169,448 @@ export default function Home() {
         if (entry.isIntersecting) {
           controls.start({
             x: ['100%', '-100%'],
-            transition: {
-              x: {
-                repeat: Infinity,
-                repeatType: "loop",
-                duration: 20,
-                ease: "linear",
-              },
-            },
+            transition: { x: { repeat: Infinity, repeatType: 'loop', duration: 22, ease: 'linear' } },
           });
         } else {
           controls.stop();
         }
       },
-      { threshold: 0.5 }
+      { threshold: 0.35 },
     );
-
-    if (floatingTextRef.current) {
-      observer.observe(floatingTextRef.current);
-    }
-
+    if (floatingTextRef.current) observer.observe(floatingTextRef.current);
     return () => {
-      if (floatingTextRef.current) {
-        observer.unobserve(floatingTextRef.current);
-      }
+      if (floatingTextRef.current) observer.unobserve(floatingTextRef.current);
     };
   }, [controls]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prevSlide) => (prevSlide + 1) % heroImages.length);
-    }, 5000);
-
-    return () => clearInterval(timer);
+    const t = setInterval(() => {
+      setCurrentSlide((p) => (p + 1) % heroImages.length);
+    }, 5500);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
     if (!location.hash) return;
-    const sectionId = location.hash.replace('#', '');
-    const section = document.getElementById(sectionId);
+    const id = location.hash.replace('#', '');
+    const section = document.getElementById(id);
     if (!section) return;
-
     const navOffset = 84;
     const y = section.getBoundingClientRect().top + window.pageYOffset - navOffset;
     window.scrollTo({ top: y, behavior: 'smooth' });
   }, [location.hash]);
 
+  const slide = heroSlides[currentSlide];
 
   return (
-    <div className="relative overflow-x-hidden font-sans">
-      
-
-      
-      <section className="relative min-h-[80vh] pt-16 overflow-hidden">
+    <div className="relative overflow-x-hidden bg-zinc-950 font-sans text-zinc-100">
+      {/* Hero */}
+      <section className="relative min-h-[88vh] overflow-hidden pt-16">
         <div className="absolute inset-0">
           {heroImages.map((image, index) => (
             <motion.div
               key={index}
-              animate={{
-                opacity: currentSlide === index ? 1 : 0,
-                scale: currentSlide === index ? 1 : 1.1,
-              }}
-              transition={{ duration: 0.8 }}
+              initial={false}
+              animate={{ opacity: currentSlide === index ? 1 : 0 }}
+              transition={{ duration: 1 }}
               className="absolute inset-0 bg-cover bg-center"
               style={{ backgroundImage: `url(${image})` }}
             />
           ))}
         </div>
-        <div className="absolute inset-0 bg-black/50" />
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/70 via-zinc-950/55 to-zinc-950" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(99,102,241,0.2),transparent)]" />
 
-        <div className="relative container mx-auto py-24 px-4 h-full flex flex-col items-center justify-center text-white">
+        <div className="relative mx-auto flex min-h-[calc(88vh-4rem)] max-w-6xl flex-col justify-center px-4 py-20 sm:px-6 lg:px-8">
           <motion.div
-            initial={{ opacity: 0, y: 50 }}
+            key={currentSlide}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-center"
+            transition={{ duration: 0.5 }}
+            className="max-w-3xl"
           >
-            {currentSlide === 0 && (
-              <>
-                <h1 className="text-4xl md:text-6xl font-bold mb-4">
-                  Connect with Fellow
-                  <span className="block text-indigo-400">Introverts</span>
-                </h1>
-                <p className="text-xl md:text-2xl mb-8">
-                  Find meaningful connections through shared interests
-                </p>
-              </>
-            )}
-            {currentSlide === 1 && (
-              <>
-                <h1 className="text-4xl md:text-6xl font-bold mb-4">
-                  Explore Quiet
-                  <span className="block text-indigo-400">Adventures</span>
-                </h1>
-                <p className="text-xl md:text-2xl mb-8">
-                  Discover introvert-friendly activities and events
-                </p>
-              </>
-            )}
-            {currentSlide === 2 && (
-              <>
-                <h1 className="text-4xl md:text-6xl font-bold mb-4">
-                  Grow at Your
-                  <span className="block text-indigo-400">Own Pace</span>
-                </h1>
-                <p className="text-xl md:text-2xl mb-8">
-                  Build relationships comfortably and authentically
-                </p>
-              </>
-            )}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center items-center"
-            >
-                <Link to="/events">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-8 py-3 bg-indigo-600 rounded-full text-lg font-semibold transition-colors hover:bg-indigo-700"
-              >
-                Get Started
-              </motion.button>
+            <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-indigo-200 backdrop-blur-sm">
+              <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+              {slide.kicker}
+            </p>
+            <h1 className="text-4xl font-bold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl">
+              {slide.line}{' '}
+              <span className="bg-gradient-to-r from-indigo-300 to-violet-300 bg-clip-text text-transparent">
+                {slide.highlight}
+              </span>
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-300 md:text-xl">{slide.sub}</p>
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link to="/events">
+                <motion.span
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-indigo-900/40 sm:w-auto"
+                >
+                  Browse events
+                  <ArrowRight className="h-5 w-5" />
+                </motion.span>
               </Link>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-8 py-3 bg-white text-indigo-600 rounded-full text-lg font-semibold transition-colors hover:bg-indigo-100"
+              <button
+                type="button"
+                onClick={() => scrollToId('features')}
+                className="inline-flex w-full items-center justify-center rounded-2xl border border-white/20 bg-white/5 px-8 py-3.5 text-base font-semibold text-white backdrop-blur-sm transition hover:bg-white/10 sm:w-auto"
               >
-                Learn More
-              </motion.button>
-            </motion.div>
+                How it works
+              </button>
+            </div>
           </motion.div>
-        </div>
 
-       
-        
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-2">
-          {heroImages.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`w-3 h-3 rounded-full transition-colors ${
-                currentSlide === index ? 'bg-indigo-600' : 'bg-white/50'
-              }`}
-            />
-          ))}
+          <div className="absolute bottom-10 left-1/2 flex -translate-x-1/2 gap-2 sm:left-auto sm:right-8 sm:translate-x-0">
+            {heroImages.map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                aria-label={`Slide ${index + 1}`}
+                onClick={() => setCurrentSlide(index)}
+                className={`h-2 rounded-full transition-all ${
+                  currentSlide === index ? 'w-8 bg-indigo-400' : 'w-2 bg-white/35 hover:bg-white/50'
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
-
-      <section id="features" className="py-20 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-3xl md:text-4xl font-bold text-center mb-16"
-          >
-            How Find My Buddy Works for Introverts
-          </motion.h2>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+      {/* Features */}
+      <section id="features" className="relative py-24">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_0%,rgba(99,102,241,0.08),transparent)]" />
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Platform"
+            title="Built for introverts"
+            subtitle="Everything you need to find your people—without the overwhelm."
+          />
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {features.map((feature, index) => (
-              <motion.div
-                key={index}
+              <motion.article
+                key={feature.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.2 }}
-                className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow"
+                viewport={{ once: true, margin: '-40px' }}
+                transition={{ delay: index * 0.08 }}
+                className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-800/80 bg-gradient-to-b from-zinc-900/80 to-zinc-950 ring-1 ring-white/[0.03] transition-shadow hover:border-zinc-700 hover:shadow-xl hover:shadow-indigo-950/20"
               >
-                <div className="flex justify-center mb-4">
-                  {feature.icon}
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <img
+                    src={feature.image}
+                    alt=""
+                    className="h-full w-full object-cover transition duration-500 group-hover:brightness-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 to-transparent" />
+                  <span className="absolute bottom-3 left-3 flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-400/30 backdrop-blur-sm">
+                    <feature.icon className="h-5 w-5" />
+                  </span>
                 </div>
-                <img
-                  src={feature.image}
-                  alt={feature.title}
-                  className="w-full h-48 object-cover rounded-lg mb-4"
-                />
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-gray-600">{feature.description}</p>
+                <div className="flex flex-1 flex-col p-5">
+                  <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
+                  <p className="mt-2 flex-1 text-sm leading-relaxed text-zinc-400">{feature.description}</p>
+                </div>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Explore */}
+      <section id="explore" className="border-y border-zinc-800/80 bg-zinc-900/30 py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Interests"
+            title="Explore what resonates"
+            subtitle="Jump into categories you love—then see real events near you."
+          />
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {interests.map((item, index) => (
+              <motion.div
+                key={item.name}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.06 }}
+                className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/50 ring-1 ring-white/[0.02] transition-shadow hover:shadow-lg hover:shadow-black/40"
+              >
+                <div className="relative aspect-[16/10] overflow-hidden">
+                  <img src={item.image} alt="" className="h-full w-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
+                </div>
+                <div className="p-5">
+                  <h3 className="text-lg font-semibold text-white">{item.name}</h3>
+                  <p className="mt-2 text-sm text-zinc-500">
+                    Meet others who enjoy {item.name.toLowerCase()}—at a pace that suits you.
+                  </p>
+                  <Link
+                    to="/events"
+                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-indigo-400 transition hover:text-indigo-300"
+                  >
+                    View events
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-
-      
-
-<section id="explore" className="py-16">
-        <h2 className="text-3xl font-bold text-center mb-8">Explore Your Interests</h2>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {[
-            { name: 'Book Club', image: b1 },
-            { name: 'Quiet Cafes', image: b2 },
-            { name: 'Nature Walks', image: b3 },
-            { name: 'Art Galleries', image: a2 },
-            { name: 'Meditation', image: a7 },
-            { name: 'Board Games', image: a11 }
-          ].map((interest, index) => (
-            <motion.div
-              key={interest.name}
-              initial={{ opacity: 0, scale: 0.8 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ scale: 1.05 }}
-              className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all"
-            >
-              <img
-                src={interest.image}
-                alt={interest.name}
-                className="w-full h-40 object-cover rounded-lg mb-4"
-              />
-              <h3 className="text-xl font-semibold mb-2">{interest.name}</h3>
-              <p className="text-gray-600">Connect with fellow introverts who share your passion for {interest.name.toLowerCase()}</p>
-              <Link to="/events">
-              <button className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors">
-                Explore {interest.name}
-              </button>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      
+      {/* Marquee */}
       <motion.div
         ref={floatingTextRef}
-        className="py-12 bg-indigo-600 overflow-hidden"
+        className="border-y border-indigo-500/20 bg-gradient-to-r from-indigo-950/80 via-violet-950/60 to-indigo-950/80 py-6"
       >
-        <motion.h2
+        <motion.p
           animate={controls}
-          className="text-6xl font-bold text-white/60 whitespace-nowrap"
-          style={{ x: "100%" }}
+          className="whitespace-nowrap text-2xl font-bold tracking-[0.2em] text-white/25 sm:text-3xl md:text-4xl"
+          style={{ x: '100%' }}
         >
-          QUIET • CONNECT • RECHARGE • GROW • EXPLORE
-        </motion.h2>
+          QUIET · CONNECT · RECHARGE · GROW · EXPLORE · FIND MY BUDDY
+        </motion.p>
       </motion.div>
 
-      
-      <section id="community" className="py-20 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-3xl md:text-4xl font-bold text-center mb-8"
+      {/* Community */}
+      <section id="community" className="py-24">
+        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
+          <SectionHeading
+            eyebrow="Community"
+            title="You’re not alone in preferring depth over noise"
+            subtitle="Share wins, find accountability, and join a wider circle that respects boundaries—starting on WhatsApp."
+          />
+          <motion.a
+            href="https://chat.whatsapp.com/HLOx1Kq79Ck3IHZWXfNZHm"
+            target="_blank"
+            rel="noopener noreferrer"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-10 py-4 text-base font-semibold text-white shadow-lg shadow-emerald-900/30"
           >
-            Join Our Introvert-Friendly Community
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-            className="text-center text-gray-600 mb-12 max-w-2xl mx-auto"
-          >
-            Connect with like-minded individuals, share experiences, and grow together in a supportive environment designed for introverts.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.4 }}
-            className="flex justify-center"
-          >
-            <a
-              href="https://chat.whatsapp.com/HLOx1Kq79Ck3IHZWXfNZHm"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block px-8 py-3 bg-indigo-600 text-white rounded-full text-lg font-semibold hover:bg-indigo-700 transition-colors"
-            >
-              Join Now
-            </a>
-          </motion.div>
+            Join the community
+            <ArrowRight className="h-5 w-5" />
+          </motion.a>
         </div>
       </section>
 
-
-      <section className="py-20">
-        <div className="container mx-auto px-4">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-3xl md:text-4xl font-bold text-center mb-16"
-          >
-            Explore Introvert-Friendly Destinations
-          </motion.h2>
-
+      {/* Destinations */}
+      <section className="py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Travel mindset"
+            title="Introvert-friendly destinations"
+            subtitle="Inspiration for your next slow trip—cities known for calm culture and space to breathe."
+          />
           <div className="relative">
-            <div className="flex overflow-x-auto gap-6 pb-8 snap-x scrollbar-hide">
-              {destinations.map((destination, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: 50 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.2 }}
-                  className="min-w-[300px] snap-center"
-                >
-                  <div className="relative group overflow-hidden rounded-xl">
-                    <img
-                      src={destination.image}
-                      alt={destination.name}
-                      className="w-full h-[400px] object-cover transition-transform duration-300 group-hover:scale-110"
-                    />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="text-white text-center">
-                        <h3 className="text-2xl font-bold mb-2">{destination.name}</h3>
-                        <MapPin className="inline-block" />
-                        <span className="ml-2">Explore</span>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+            <button
+              type="button"
+              aria-label="Scroll destinations left"
+              onClick={() => scrollDestinations(-1)}
+              className="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-zinc-950/90 text-white shadow-lg shadow-black/40 backdrop-blur-md transition hover:border-indigo-400/40 hover:bg-zinc-900 sm:flex lg:-left-2"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Scroll destinations right"
+              onClick={() => scrollDestinations(1)}
+              className="absolute right-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-zinc-950/90 text-white shadow-lg shadow-black/40 backdrop-blur-md transition hover:border-indigo-400/40 hover:bg-zinc-900 sm:flex lg:-right-2"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+            <div
+              ref={destinationsScrollRef}
+              className="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pt-2 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:px-14 [&::-webkit-scrollbar]:hidden"
+            >
+            {destinations.map((d, index) => (
+              <motion.div
+                key={d.name}
+                data-destination-card
+                initial={{ opacity: 0, x: 24 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.06 }}
+                className="relative w-[min(85vw,320px)] shrink-0 snap-center overflow-hidden rounded-2xl border border-zinc-800 shadow-xl"
+              >
+                <img src={d.image} alt="" className="h-[380px] w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-5">
+                  <h3 className="text-2xl font-bold text-white">{d.name}</h3>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm text-zinc-400">
+                    <MapPin className="h-4 w-4 text-indigo-400" />
+                    On your list
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+            </div>
+            <div className="mt-4 flex justify-center gap-3 sm:hidden">
+              <button
+                type="button"
+                aria-label="Scroll destinations left"
+                onClick={() => scrollDestinations(-1)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-zinc-900/80 text-white backdrop-blur-sm transition active:scale-95"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Scroll destinations right"
+                onClick={() => scrollDestinations(1)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-zinc-900/80 text-white backdrop-blur-sm transition active:scale-95"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      
-      
-       <section className="py-16">
-        <h2 className="text-3xl font-bold text-center mb-8">Find Your Introvert Tribe</h2>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {[
-            { name: 'Silent Book Club', image: b4 },
-            { name: 'Introvert Hikers', image: b3 },
-            { name: 'Quiet Game Night', image: a9 },
-            { name: 'Mindful Art Class', image: a9 },
-            { name: 'Introvert Movie Buffs', image: a10 },
-            { name: 'Calm Tech Meetup', image: a11 }
-          ].map((activity, index) => (
-            <motion.div
-              key={activity.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ scale: 1.05 }}
-              className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all"
-            >
-              <img
-                src={activity.image}
-                alt={activity.name}
-                className="w-full h-40 object-cover rounded-lg mb-4"
-              />
-              <h3 className="text-xl font-semibold mb-2">{activity.name}</h3>
-              <p className="text-gray-600">Connect with fellow introverts who enjoy {activity.name.toLowerCase()}</p>
-              <Link to="/events">
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors"
+      {/* Tribes */}
+      <section className="border-t border-zinc-800/80 bg-zinc-900/20 py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Groups"
+            title="Find your tribe"
+            subtitle="From silent reading to trail walks—these are the kinds of circles you can discover through events."
+          />
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {tribes.map((item, index) => (
+              <motion.div
+                key={item.name}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.05 }}
+                className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/60 transition-shadow hover:shadow-lg hover:shadow-black/30"
               >
-                Join Group
-              </motion.button>
-            </Link>
-            </motion.div>
-          ))}
+                <img src={item.image} alt="" className="aspect-[16/10] w-full object-cover" />
+                <div className="p-5">
+                  <h3 className="text-lg font-semibold text-white">{item.name}</h3>
+                  <p className="mt-2 text-sm text-zinc-500">See who’s hosting something similar near you.</p>
+                  <Link to="/events">
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-indigo-400 hover:text-indigo-300">
+                      Explore events
+                      <ChevronRight className="h-4 w-4" />
+                    </span>
+                  </Link>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
-
-
-      <section id="blog" className="py-20">
-  <div className="container mx-auto px-4">
-    <motion.h2
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="text-3xl md:text-4xl font-bold text-center mb-16"
-    >
-      Insights for Introverts
-    </motion.h2>
-
-    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-      {blogPosts.map((post, index) => (
-        <motion.div
-          key={index}
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: index * 0.1 }}
-          whileHover={{ scale: 1.05 }}
-          className="bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all"
-        >
-          <img
-            src={post.image}
-            alt={post.title}
-            className="w-full h-48 object-cover"
+      {/* Blog */}
+      <section id="blog" className="py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            eyebrow="Read"
+            title="Insights for introverts"
+            subtitle="Short reads on connection, rest, and showing up authentically."
           />
-          <div className="p-6">
-            <h3 className="text-xl font-semibold mb-2">{post.title}</h3>
-            <p className="text-gray-600 mb-4">Discover insights and tips tailored for introverts...</p>
-            <a href="/#blog" className="text-indigo-600 hover:underline">Read More</a>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  </div>
-</section>
-
-
-      
-      <section className="py-20 bg-indigo-50">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-12">
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="flex-1"
-            >
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Download the Find My Buddy App for Introverts
-              </h2>
-              <p className="text-gray-600 mb-8">
-                Start connecting with like-minded individuals today. Our app is designed with introverts in mind, providing a comfortable space to explore and connect.
-              </p>
-              <div className="flex gap-4">
-                <div className="p-4 bg-white rounded-lg shadow-md">
-                  <QrCode size={100} />
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {blogPosts.map((post, index) => (
+              <motion.article
+                key={post.title}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.06 }}
+                className="flex flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 ring-1 ring-white/[0.03] transition hover:border-zinc-700"
+              >
+                <div className="aspect-[5/4] overflow-hidden">
+                  <img src={post.image} alt="" className="h-full w-full object-cover" />
                 </div>
-                <div className="space-y-4">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex items-center gap-2 px-6 py-3 bg-black text-white rounded-lg transition-colors hover:bg-gray-800"
+                <div className="flex flex-1 flex-col p-5">
+                  <h3 className="text-base font-semibold leading-snug text-white">{post.title}</h3>
+                  <p className="mt-2 flex-1 text-sm text-zinc-500">Ideas and tips tailored to quieter personalities.</p>
+                  <button
+                    type="button"
+                    onClick={() => scrollToId('blog')}
+                    className="mt-4 text-left text-sm font-semibold text-indigo-400 hover:text-indigo-300"
                   >
-                    <Download size={20} />
+                    Read more
+                  </button>
+                </div>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* App CTA */}
+      <section className="border-t border-zinc-800 py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-900 via-zinc-950 to-indigo-950/40 p-8 ring-1 ring-white/5 md:p-12 lg:flex lg:items-center lg:gap-12">
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-400">Mobile</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-white md:text-4xl">
+                Take Find My Buddy with you
+              </h2>
+              <p className="mt-4 max-w-lg text-zinc-400">
+                Same thoughtful experience on the go—browse events, get reminders, and stay in touch with your groups.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                <div className="rounded-2xl border border-zinc-700 bg-white/5 p-4 backdrop-blur-sm">
+                  <QrCode className="h-24 w-24 text-zinc-200" />
+                </div>
+                <div className="flex flex-col gap-3">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-zinc-900"
+                  >
+                    <Download className="h-4 w-4" />
                     App Store
                   </motion.button>
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex items-center gap-2 px-6 py-3 bg-black text-white rounded-lg transition-colors hover:bg-gray-800"
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-zinc-600 bg-zinc-900 px-6 py-3 text-sm font-semibold text-white"
                   >
-                    <Download size={20} />
+                    <Download className="h-4 w-4" />
                     Play Store
                   </motion.button>
                 </div>
               </div>
-            </motion.div>
-            
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="flex-1"
-            >
+            </div>
+            <div className="mt-10 flex flex-1 justify-center lg:mt-0">
               <img
                 src={b5}
-                alt="Find My Buddy App Screenshot"
-                className="max-w-[300px] mx-auto rounded-3xl shadow-2xl"
+                alt=""
+                className="max-h-[420px] w-auto max-w-[280px] rounded-[2rem] border border-zinc-700/50 object-cover shadow-2xl shadow-black/50"
               />
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
 
-      
+      {/* Chat FAB */}
       <motion.button
-        className="fixed bottom-6 right-6 bg-indigo-600 text-white rounded-full p-4 shadow-lg z-50"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={toggleChatbot}
+        type="button"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/50 ring-2 ring-white/10"
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.94 }}
+        aria-label="Open chat assistant"
+        onClick={() => setIsChatbotOpen((o) => !o)}
       >
-        <MessageCircle size={24} />
+        <MessageCircle className="h-6 w-6" />
       </motion.button>
-
 
       {isChatbotOpen && (
         <motion.div
-          initial={{ opacity: 0, y: 50 }}
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50 }}
-          className="fixed bottom-20 right-6 z-50"
+          exit={{ opacity: 0, y: 24 }}
+          className="fixed bottom-24 right-6 z-50 w-[min(100vw-2rem,400px)]"
         >
-          <Chatbot onClose={toggleChatbot} />
+          <Chatbot onClose={() => setIsChatbotOpen(false)} />
         </motion.div>
       )}
     </div>
-  )
+  );
 }
-

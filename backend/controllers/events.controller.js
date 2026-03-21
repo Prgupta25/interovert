@@ -479,7 +479,7 @@ export async function getEventInteractionStatus(req, res) {
     .lean();
 
   const eventEnded = new Date(event.datetime).getTime() < Date.now();
-  const canRate = Boolean(participant) && !owner && eventEnded;
+  const canRate = Boolean(participant) && !owner;
 
   return res.json({
     joined: Boolean(participant),
@@ -529,10 +529,6 @@ export async function submitEventRating(req, res) {
     return res.status(403).json({ message: 'Only participants can rate this event' });
   }
 
-  if (new Date(event.datetime).getTime() > Date.now()) {
-    return res.status(400).json({ message: 'You can rate this event after it ends' });
-  }
-
   const rating = Number(req.body?.rating);
   const review = String(req.body?.review || '').trim().slice(0, 500);
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
@@ -560,30 +556,39 @@ export async function submitEventRating(req, res) {
 }
 
 export async function getEventRatings(req, res) {
-  const event = await Event.findById(req.params.eventId).select('_id');
+  const event = await Event.findById(req.params.eventId).select('_id owner_id');
   if (!event) return res.status(404).json({ message: 'Event not found' });
+
+  const viewerIsOwner = req.user && isOwner(event, req.user._id);
 
   const ratings = await EventRating.find({ event_id: event._id })
     .sort({ createdAt: -1 })
-    .limit(20)
-    .populate('user_id', 'name profile.avatar')
+    .limit(100)
+    .populate('user_id', 'name email profile.avatar')
     .lean();
 
   const stats = await getEventStats(event._id);
   return res.json({
     averageRating: stats.averageRating,
     ratingCount: stats.ratingCount,
-    ratings: ratings.map((row) => ({
-      id: row._id,
-      user: {
-        id: row.user_id?._id,
-        name: row.user_id?.name || 'User',
-        avatar: row.user_id?.profile?.avatar || null,
-      },
-      rating: row.rating,
-      review: row.review || '',
-      createdAt: row.createdAt,
-    })),
+    ratings: ratings.map((row) => {
+      const u = row.user_id;
+      const baseUser = {
+        id: u?._id,
+        name: u?.name || 'Attendee',
+        avatar: u?.profile?.avatar || null,
+      };
+      if (viewerIsOwner && u?.email) {
+        baseUser.email = u.email;
+      }
+      return {
+        id: row._id,
+        user: baseUser,
+        rating: row.rating,
+        review: row.review || '',
+        createdAt: row.createdAt,
+      };
+    }),
   });
 }
 

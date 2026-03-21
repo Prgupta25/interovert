@@ -12,6 +12,7 @@ import {
   joinCommunityEvent,
   leaveCommunityEvent,
   listEventChats,
+  markChatRead,
   listMyNotifications,
   markEmailVerified,
   markGovIdVerified,
@@ -43,6 +44,7 @@ router.post('/events/:eventId/chats/direct/:participantId', isEventCreator, asyn
 router.get('/events/:eventId/participant-check', isEventParticipant, (req, res) => res.json({ ok: true }));
 
 router.get('/chats/:chatId/messages', asyncHandler(getChatMessages));
+router.post('/chats/:chatId/read', asyncHandler(markChatRead));
 router.post('/chats/:chatId/messages', chatMessageRateLimiter, asyncHandler(postChatMessage));
 router.post('/chats/:chatId/block/:targetUserId', asyncHandler(blockUserInChat));
 router.post('/chats/:chatId/report/:targetUserId', asyncHandler(reportUser));

@@ -1,69 +1,148 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Calendar, MapPin, Users, Share2, Heart, ArrowLeft, Download, MessageCircle, Star } from 'lucide-react'
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Share2,
+  Heart,
+  ArrowLeft,
+  Download,
+  MessageCircle,
+  Star,
+  Clock,
+  Sparkles,
+  Shield,
+  Loader2,
+} from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { getAuthToken, getCurrentUser } from '../utils/session'
 import apiClient from '../services/apiClient'
 
-const CategoryBadge = ({ category }) => {
-  const categoryColors = {
-    Adventure: 'bg-green-500',
-    Social: 'bg-blue-500',
-    Learning: 'bg-yellow-500',
-    Wellness: 'bg-purple-500',
-    Gaming: 'bg-red-500',
-    Movies: 'bg-pink-500',
-    Other: 'bg-gray-500'
-  }
+const CATEGORY_STYLES = {
+  Adventure: 'bg-emerald-500/20 text-emerald-300 ring-emerald-500/30',
+  Social: 'bg-sky-500/20 text-sky-300 ring-sky-500/30',
+  Learning: 'bg-amber-500/20 text-amber-200 ring-amber-500/30',
+  Wellness: 'bg-violet-500/20 text-violet-300 ring-violet-500/30',
+  Gaming: 'bg-rose-500/20 text-rose-300 ring-rose-500/30',
+  Movies: 'bg-fuchsia-500/20 text-fuchsia-300 ring-fuchsia-500/30',
+  Other: 'bg-zinc-500/20 text-zinc-300 ring-zinc-500/30',
+}
 
+function CategoryBadge({ category }) {
+  const cls = CATEGORY_STYLES[category] || CATEGORY_STYLES.Other
   return (
-    <span className={`${categoryColors[category] || 'bg-gray-500'} text-white text-xs font-bold px-2 py-1 rounded-full`}>
+    <span
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide ring-1 ring-inset ${cls}`}
+    >
       {category}
     </span>
   )
+}
+
+function MetaRow({ icon: Icon, children, className = '' }) {
+  return (
+    <div className={`flex gap-3 text-sm text-zinc-300 ${className}`}>
+      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-800/80 text-indigo-400 ring-1 ring-zinc-700/80">
+        <Icon className="h-4 w-4" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1 leading-relaxed">{children}</div>
+    </div>
+  )
+}
+
+function SectionCard({ title, subtitle, children, delay = 0 }) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay }}
+      className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl shadow-black/20"
+    >
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-2 border-b border-zinc-800/60 pb-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-white">{title}</h2>
+          {subtitle ? <p className="mt-1 text-sm text-zinc-500">{subtitle}</p> : null}
+        </div>
+      </div>
+      <div className="text-sm leading-relaxed text-zinc-300">{children}</div>
+    </motion.section>
+  )
+}
+
+function PageSkeleton() {
+  return (
+    <div className="min-h-screen animate-pulse bg-zinc-950">
+      <div className="mb-10 mt-16 h-[min(55vh,420px)] bg-zinc-800 pt-24 sm:mb-14 sm:mt-20 sm:pt-28" />
+      <div className="mx-auto max-w-6xl space-y-6 px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="h-48 rounded-2xl bg-zinc-900 ring-1 ring-zinc-800" />
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="h-64 rounded-2xl bg-zinc-900 ring-1 ring-zinc-800 lg:col-span-2" />
+          <div className="h-64 rounded-2xl bg-zinc-900 ring-1 ring-zinc-800" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function formatEventRange(iso) {
+  const d = new Date(iso)
+  return {
+    dateLine: d.toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+    timeLine: d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
+  }
 }
 
 export default function PerEvent() {
   const navigate = useNavigate()
   const { id } = useParams()
   const [event, setEvent] = useState(null)
+  const [pageLoading, setPageLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [isAttending, setIsAttending] = useState(false)
   const [participants, setParticipants] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isOpeningChat, setIsOpeningChat] = useState(false)
+  const [chatPreview, setChatPreview] = useState({ totalUnread: 0, fromNames: [] })
   const [isFavorited, setIsFavorited] = useState(false)
   const [favoriteCount, setFavoriteCount] = useState(0)
-  const [ratingSummary, setRatingSummary] = useState({ averageRating: 0, ratingCount: 0, ratings: [] })
+  const [ratingSummary, setRatingSummary] = useState({
+    averageRating: 0,
+    ratingCount: 0,
+    ratings: [],
+  })
   const [myRating, setMyRating] = useState(null)
   const [ratingValue, setRatingValue] = useState(5)
   const [ratingReview, setRatingReview] = useState('')
-  const [canRate, setCanRate] = useState(false)
   const [eventEnded, setEventEnded] = useState(false)
   const [isSubmittingRating, setIsSubmittingRating] = useState(false)
+
   const currentUser = getCurrentUser()
   const token = getAuthToken()
   const isOwner = event && currentUser && String(event.owner_id) === String(currentUser._id)
 
-  const loadEvent = async () => {
-    try {
-      const { data } = await apiClient.get(`/api/events/${id}`)
-      setEvent(data)
-      setFavoriteCount(data.favoriteCount || 0)
-      setRatingSummary((prev) => ({
-        ...prev,
-        averageRating: data.averageRating || 0,
-        ratingCount: data.ratingCount || 0,
-      }))
-      setEventEnded(new Date(data.datetime).getTime() < Date.now())
-    } catch (_) {
-      toast.error('Unable to load event details')
-    }
-  }
+  const { dateLine, timeLine } = useMemo(
+    () => (event ? formatEventRange(event.datetime) : { dateLine: '', timeLine: '' }),
+    [event],
+  )
 
-  const loadParticipants = async () => {
+  const avgRating = Number(ratingSummary.averageRating || event?.averageRating || 0)
+  const ratingCount = ratingSummary.ratingCount ?? event?.ratingCount ?? 0
+  const spotsLeft = Math.max(0, (event?.maxAttendees ?? 0) - (event?.participantCount ?? 0))
+  const isFull = event && spotsLeft === 0
+
+  /** Joined attendees (not the host) may rate anytime */
+  const mayLeaveReview = Boolean(!isOwner && isAttending)
+
+  const loadParticipants = useCallback(async () => {
     if (!token || !isOwner) return
     try {
       const { data } = await apiClient.get(`/api/events/${id}/participants`)
@@ -71,53 +150,110 @@ export default function PerEvent() {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to fetch participants')
     }
-  }
+  }, [id, isOwner, token])
 
-  const loadJoinStatus = async () => {
-    if (!token) return
+  const refreshChatPreview = useCallback(async () => {
+    if (!token || !id || (!isOwner && !isAttending)) return
     try {
-      const { data } = await apiClient.get(`/api/events/${id}/join-status`)
-      setIsAttending(!!data.joined)
-    } catch (_) {}
-  }
-
-  const loadInteractionStatus = async () => {
-    if (!token) return
-    try {
-      const { data } = await apiClient.get(`/api/events/${id}/interaction-status`)
-      setIsAttending(!!data.joined)
-      setIsFavorited(!!data.isFavorited)
-      setCanRate(!!data.canRate)
-      setEventEnded(!!data.eventEnded)
-      setMyRating(data.myRating || null)
-      if (data.myRating) {
-        setRatingValue(data.myRating.rating)
-        setRatingReview(data.myRating.review || '')
-      }
-    } catch (_) {}
-  }
-
-  const loadRatings = async () => {
-    try {
-      const { data } = await apiClient.get(`/api/events/${id}/ratings`)
-      setRatingSummary({
-        averageRating: data.averageRating || 0,
-        ratingCount: data.ratingCount || 0,
-        ratings: data.ratings || [],
+      const { data } = await apiClient.get(`/api/community/events/${id}/chats`)
+      const chats = data?.chats || []
+      const totalUnread = Number(data?.totalUnread) || 0
+      const nameSet = new Set()
+      chats.forEach((c) => {
+        if (!(Number(c.unreadCount) > 0)) return
+        if (c.type === 'DIRECT' && c.otherUserName) nameSet.add(c.otherUserName)
+        ;(c.pendingSenderNames || []).forEach((n) => {
+          if (n) nameSet.add(n)
+        })
+        if (nameSet.size === 0 && c.lastSenderName) nameSet.add(c.lastSenderName)
       })
-    } catch (_) {}
-  }
+      setChatPreview({ totalUnread, fromNames: [...nameSet].slice(0, 4) })
+    } catch {
+      /* optional */
+    }
+  }, [token, id, isOwner, isAttending])
 
   useEffect(() => {
-    loadEvent()
-    loadJoinStatus()
-    loadInteractionStatus()
-    loadRatings()
-  }, [id])
+    let cancelled = false
+
+    async function loadPage() {
+      setPageLoading(true)
+      setLoadError(false)
+      try {
+        const [eventRes, ratingsRes] = await Promise.all([
+          apiClient.get(`/api/events/${id}`),
+          apiClient.get(`/api/events/${id}/ratings`),
+        ])
+        if (cancelled) return
+
+        const ev = eventRes.data
+        const r = ratingsRes.data
+        setEvent(ev)
+        setFavoriteCount(ev.favoriteCount || 0)
+        setRatingSummary({
+          averageRating: r.averageRating ?? ev.averageRating ?? 0,
+          ratingCount: r.ratingCount ?? ev.ratingCount ?? 0,
+          ratings: r.ratings || [],
+        })
+        setEventEnded(new Date(ev.datetime).getTime() < Date.now())
+
+        if (token) {
+          try {
+            const { data: int } = await apiClient.get(`/api/events/${id}/interaction-status`)
+            if (cancelled) return
+            setIsAttending(!!int.joined)
+            setIsFavorited(!!int.isFavorited)
+            setEventEnded(!!int.eventEnded)
+            setMyRating(int.myRating || null)
+            if (int.myRating) {
+              setRatingValue(int.myRating.rating)
+              setRatingReview(int.myRating.review || '')
+            }
+          } catch {
+            try {
+              const { data: join } = await apiClient.get(`/api/events/${id}/join-status`)
+              if (!cancelled) setIsAttending(!!join.joined)
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setLoadError(true)
+          toast.error('Unable to load event details')
+        }
+      } finally {
+        if (!cancelled) setPageLoading(false)
+      }
+    }
+
+    loadPage()
+    return () => {
+      cancelled = true
+    }
+  }, [id, token])
 
   useEffect(() => {
     loadParticipants()
-  }, [id, isOwner])
+  }, [loadParticipants])
+
+  useEffect(() => {
+    if (pageLoading) return
+    refreshChatPreview()
+  }, [pageLoading, refreshChatPreview])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refreshChatPreview()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    const t = setInterval(refreshChatPreview, 45000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      clearInterval(t)
+    }
+  }, [refreshChatPreview])
 
   const handleJoin = async () => {
     if (!token) {
@@ -130,7 +266,10 @@ export default function PerEvent() {
       await apiClient.post(`/api/events/${id}/join`, {})
       toast.success('You joined this event')
       setIsAttending(true)
-      loadEvent()
+      const { data } = await apiClient.get(`/api/events/${id}`)
+      setEvent(data)
+      setFavoriteCount(data.favoriteCount || 0)
+      setTimeout(() => refreshChatPreview(), 400)
     } catch (error) {
       toast.error(error.response?.data?.message || 'Join failed')
     } finally {
@@ -163,7 +302,7 @@ export default function PerEvent() {
       a.download = `event-${id}-participants.csv`
       a.click()
       window.URL.revokeObjectURL(url)
-    } catch (_) {
+    } catch {
       toast.error('Could not export participants')
     }
   }
@@ -174,18 +313,18 @@ export default function PerEvent() {
       const { data } = await apiClient.post(`/api/events/${id}/whatsapp-group/create`, {})
       toast.success(data?.message || 'WhatsApp group creation triggered')
 
-      const inviteLink = data?.webhookResult?.response?.group?.inviteLink;
+      const inviteLink = data?.webhookResult?.response?.group?.inviteLink
       if (inviteLink) {
-        window.open(inviteLink, '_blank', 'noopener,noreferrer');
+        window.open(inviteLink, '_blank', 'noopener,noreferrer')
       } else {
-        toast('Group created, but no invite link was returned by webhook.');
+        toast('Group created, but no invite link was returned by webhook.')
       }
     } catch (error) {
-      const apiMessage = error.response?.data?.message;
+      const apiMessage = error.response?.data?.message
       if (apiMessage?.includes('WHATSAPP_GROUP_WEBHOOK_URL')) {
-        toast.error('Webhook not configured in backend .env');
+        toast.error('Webhook not configured in backend .env')
       } else {
-        toast.error(apiMessage || 'Could not create WhatsApp group');
+        toast.error(apiMessage || 'Could not create WhatsApp group')
       }
     }
   }
@@ -245,8 +384,8 @@ export default function PerEvent() {
         await navigator.share({ title: shareTitle, text: shareText, url: shareUrl })
         return
       }
-    } catch (_) {
-      // User may cancel native share; fallback below
+    } catch {
+      /* user cancelled or share failed */
     }
 
     try {
@@ -254,7 +393,7 @@ export default function PerEvent() {
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${shareUrl}`)}`
       window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
       toast.success('Event link copied. WhatsApp share opened.')
-    } catch (_) {
+    } catch {
       toast.error('Could not share this event right now')
     }
   }
@@ -265,8 +404,12 @@ export default function PerEvent() {
       toast.error('Please login first')
       return
     }
-    if (!canRate) {
-      toast.error('You can rate this event only after attending it')
+    if (isOwner) {
+      toast.error('Hosts cannot rate their own event')
+      return
+    }
+    if (!isAttending) {
+      toast.error('Join this event to leave a review')
       return
     }
 
@@ -279,10 +422,15 @@ export default function PerEvent() {
       setMyRating(data.myRating || null)
       setRatingSummary((prev) => ({
         ...prev,
-        averageRating: data.averageRating || prev.averageRating,
-        ratingCount: data.ratingCount || prev.ratingCount,
+        averageRating: data.averageRating ?? prev.averageRating,
+        ratingCount: data.ratingCount ?? prev.ratingCount,
       }))
-      loadRatings()
+      const { data: r } = await apiClient.get(`/api/events/${id}/ratings`)
+      setRatingSummary({
+        averageRating: r.averageRating || 0,
+        ratingCount: r.ratingCount || 0,
+        ratings: r.ratings || [],
+      })
       toast.success(data.message || 'Rating submitted')
     } catch (error) {
       toast.error(error.response?.data?.message || 'Could not submit rating')
@@ -291,249 +439,469 @@ export default function PerEvent() {
     }
   }
 
-  if (!event) return null
+  if (pageLoading) return <PageSkeleton />
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      
-      <div className="relative h-[60vh]">
-        <img
-          src={event.photo || '/placeholder.svg?height=600&width=1200'}
-          alt={event.name}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent" />
+  if (loadError || !event) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center bg-zinc-950 px-4 pt-28 text-center">
+        <p className="text-lg font-medium text-white">We couldn&apos;t load this event</p>
+        <p className="mt-2 max-w-md text-sm text-zinc-400">
+          Check your connection or try again. The event may have been removed.
+        </p>
         <Link
           to="/events"
-          className="absolute top-4 left-4 flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
+          className="mt-8 inline-flex items-center gap-2 rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500"
         >
-          <ArrowLeft />
-          Back to Events
+          <ArrowLeft className="h-4 w-4" />
+          Back to events
         </Link>
       </div>
+    )
+  }
 
-      
-      <div className="max-w-4xl mx-auto px-4 -mt-32 relative">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-800 rounded-xl p-6 shadow-xl">
-          <div className="flex justify-between items-start mb-6">
-            <h1 className="text-3xl font-bold">{event.name}</h1>
-            <CategoryBadge category={event.category} />
-          </div>
-          <p className="text-indigo-300 mb-4">Event Creator: {event.ownerName}</p>
-          
-          <div className="flex flex-wrap gap-6 text-gray-300 mb-8">
-            <div className="flex items-center gap-2">
-              <Calendar size={20} />
-              {new Date(event.datetime).toLocaleString()}
-            </div>
-            <div className="flex items-start gap-2">
-              <MapPin size={20} className="mt-0.5 shrink-0" />
-              <div>
-                {event.address ? (
-                  <>
-                    <span>{event.address.formattedAddress || event.address.line1}</span>
-                    {event.address.geocode?.lat && (
-                      <a
-                        href={`https://www.openstreetmap.org/?mlat=${event.address.geocode.lat}&mlon=${event.address.geocode.lng}#map=16/${event.address.geocode.lat}/${event.address.geocode.lng}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-2 text-xs text-emerald-400 hover:text-emerald-300 underline"
-                      >
-                        View on Map
-                      </a>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-gray-400">Address not specified</span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Users size={20} />
-              {event.participantCount || 0}/{event.maxAttendees} spots
-            </div>
-            <div className="flex items-center gap-2">
-              <Star size={18} className="text-amber-400" />
-              {(ratingSummary.averageRating || event.averageRating || 0).toFixed(1)} ({ratingSummary.ratingCount || event.ratingCount || 0})
-            </div>
+  const addressLine = event.address?.formattedAddress || event.address?.line1
+  const hasGeo = event.address?.geocode?.lat && event.address?.geocode?.lng
+  const mapHref = hasGeo
+    ? `https://www.openstreetmap.org/?mlat=${event.address.geocode.lat}&mlon=${event.address.geocode.lng}#map=16/${event.address.geocode.lat}/${event.address.geocode.lng}`
+    : null
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 isolation-isolate">
+      {/* mt: breathing room below fixed navbar; pt: keeps controls clear of nav; image fills hero incl. padding */}
+      <header className="relative bg-zinc-950">
+        <div className="relative isolate mt-16 mb-10 min-h-[min(58vh,480px)] w-full overflow-hidden bg-zinc-900 pt-24 sm:mt-20 sm:pt-28 sm:mb-14">
+          <img
+            src={event.photo || '/placeholder.svg?height=600&width=1200'}
+            alt=""
+            className="absolute inset-0 z-0 h-full w-full object-cover object-center"
+          />
+          {/* Darken bottom for title contrast; keep top lighter so the photo stays visible */}
+          <div
+            className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-zinc-950/30"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_90%_60%_at_50%_100%,rgba(24,24,27,0.5),transparent_55%)]"
+            aria-hidden
+          />
+
+          <div className="absolute left-0 right-0 top-0 z-10 flex justify-between gap-4 px-4 pt-5 sm:px-6 lg:px-8 sm:pt-6">
+            <Link
+              to="/events"
+              className="inline-flex items-center gap-2 rounded-full border border-zinc-600/80 bg-zinc-950/95 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-black/30 transition hover:border-zinc-500 hover:bg-zinc-900"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              Events
+            </Link>
           </div>
 
-          <div className="space-y-8">
-            <section>
-              <h2 className="text-xl font-semibold mb-3">About This Event</h2>
-              <p className="text-gray-300">{event.description}</p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-semibold mb-3">What We'll Do</h2>
-              <p className="text-gray-300">{event.activities}</p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-semibold mb-3">What to Expect</h2>
-              <p className="text-gray-300">{event.expectations}</p>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-semibold mb-3">About the Host</h2>
-              <p className="text-gray-300">{event.aboutYou}</p>
-            </section>
-
-            <div className="flex gap-4">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleJoin}
-                disabled={isLoading || isOwner}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-6 py-3 rounded-lg transition-colors"
+          <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pb-10 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-6xl">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45 }}
+                className="flex flex-col gap-4"
               >
-                {isOwner ? 'You are Event Creator' : (isAttending ? 'Joined' : 'Join Event')}
-              </motion.button>
-              {(isOwner || isAttending) && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleOpenChat}
-                  disabled={isOpeningChat}
-                  className="inline-flex items-center gap-2 px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                >
-                  <MessageCircle size={18} />
-                  {isOpeningChat ? 'Opening...' : 'Chat'}
-                </motion.button>
-              )}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleShareEvent}
-                className="p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
-                title="Share event with friends"
-              >
-                <Share2 size={20} />
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleToggleFavorite}
-                className={`p-3 rounded-lg transition-colors ${
-                  isFavorited ? 'bg-rose-600 hover:bg-rose-700' : 'bg-gray-700 hover:bg-gray-600'
-                }`}
-                title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-              >
-                <Heart size={20} fill={isFavorited ? 'currentColor' : 'none'} />
-              </motion.button>
-            </div>
-            <p className="text-sm text-gray-400">Saved by {favoriteCount} people</p>
-
-            {isOwner && (
-              <div className="flex gap-4">
-                <button
-                  onClick={handleDeleteEvent}
-                  className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
-                >
-                  Delete Event
-                </button>
-                <button
-                  onClick={handleExportParticipants}
-                  className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg inline-flex items-center gap-2"
-                >
-                  <Download size={16} />
-                  Export Participants
-                </button>
-                <button
-                  onClick={handleCreateWhatsappGroup}
-                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg"
-                >
-                  Create WhatsApp Group
-                </button>
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {isOwner && (
-          <div className="mt-12 bg-gray-800 rounded-xl p-6">
-            <h2 className="text-2xl font-bold mb-4">Participants</h2>
-            <div className="space-y-3">
-              {participants.map((p) => (
-                <div key={p._id} className="bg-gray-700 rounded-lg p-4">
-                  <p><strong>Name:</strong> {p.fullName}</p>
-                  <p><strong>Phone:</strong> {p.phoneNumber}</p>
-                  <p><strong>WhatsApp:</strong> {p.whatsappNumber || p.phoneNumber}</p>
-                  <p><strong>Profile ID:</strong> {p.profileId}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CategoryBadge category={event.category} />
+                  {eventEnded ? (
+                    <span className="rounded-full bg-zinc-800/90 px-3 py-1 text-xs font-medium text-zinc-400 ring-1 ring-zinc-700">
+                      Past event
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/25">
+                      <Clock className="h-3 w-3" aria-hidden />
+                      Upcoming
+                    </span>
+                  )}
                 </div>
-              ))}
-              {participants.length === 0 && (
-                <p className="text-gray-400">No participants joined yet.</p>
-              )}
+                <h1 className="max-w-4xl text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+                  {event.name}
+                </h1>
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-300">
+                  <span className="inline-flex items-center gap-1.5 text-indigo-300">
+                    <Sparkles className="h-4 w-4 shrink-0 text-indigo-400" aria-hidden />
+                    Hosted by <span className="font-medium text-white">{event.ownerName}</span>
+                  </span>
+                </p>
+              </motion.div>
             </div>
-          </div>
-        )}
-
-        <div className="mt-12 bg-gray-800 rounded-xl p-6 space-y-5">
-          <div>
-            <h2 className="text-2xl font-bold">Ratings & Reviews</h2>
-            <p className="text-gray-400 mt-1">
-              Average {(ratingSummary.averageRating || 0).toFixed(1)} / 5 from {ratingSummary.ratingCount || 0} ratings
-            </p>
-          </div>
-
-          {!isOwner && isAttending && eventEnded && (
-            <form onSubmit={handleSubmitRating} className="bg-gray-700 rounded-lg p-4 space-y-3">
-              <p className="font-semibold">Rate this event</p>
-              <div className="flex items-center gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRatingValue(star)}
-                    className={`p-1 ${star <= ratingValue ? 'text-amber-400' : 'text-gray-500'}`}
-                  >
-                    <Star size={22} fill={star <= ratingValue ? 'currentColor' : 'none'} />
-                  </button>
-                ))}
-              </div>
-              <textarea
-                value={ratingReview}
-                onChange={(e) => setRatingReview(e.target.value)}
-                className="w-full rounded-lg bg-gray-800 border border-gray-600 p-3"
-                placeholder="Write your review (optional)"
-                maxLength={500}
-              />
-              <button
-                type="submit"
-                disabled={isSubmittingRating || !canRate}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4 py-2 rounded-lg"
-              >
-                {isSubmittingRating ? 'Submitting...' : (myRating ? 'Update Rating' : 'Submit Rating')}
-              </button>
-            </form>
-          )}
-
-          {!eventEnded && isAttending && !isOwner && (
-            <p className="text-sm text-gray-400">You can rate this event after it ends.</p>
-          )}
-
-          <div className="space-y-3">
-            {(ratingSummary.ratings || []).slice(0, 6).map((row) => (
-              <div key={row.id} className="bg-gray-700 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium">{row.user?.name || 'User'}</p>
-                  <p className="text-amber-400">{'★'.repeat(row.rating)}{'☆'.repeat(5 - row.rating)}</p>
-                </div>
-                {row.review ? <p className="text-gray-300 mt-2">{row.review}</p> : null}
-              </div>
-            ))}
-            {(!ratingSummary.ratings || ratingSummary.ratings.length === 0) && (
-              <p className="text-gray-400">No ratings yet.</p>
-            )}
           </div>
         </div>
+      </header>
 
-      </div>
+      <main className="relative z-10 w-full transform-gpu bg-zinc-950 pb-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
+          <div className="space-y-8 lg:col-span-7 xl:col-span-8">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/40 sm:p-8"
+            >
+              <h2 className="sr-only">Event details</h2>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <MetaRow icon={Calendar}>
+                  <p className="font-medium text-white">{dateLine}</p>
+                  <p className="text-zinc-500">{timeLine}</p>
+                </MetaRow>
+                <MetaRow icon={MapPin}>
+                  {addressLine ? (
+                    <>
+                      <p className="font-medium text-white">{addressLine}</p>
+                      {mapHref ? (
+                        <a
+                          href={mapHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex text-xs font-semibold text-indigo-400 hover:text-indigo-300"
+                        >
+                          Open in map
+                        </a>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="text-zinc-500">Address not specified</p>
+                  )}
+                </MetaRow>
+                <MetaRow icon={Users}>
+                  <p className="font-medium text-white">
+                    {event.participantCount || 0}
+                    <span className="font-normal text-zinc-500">
+                      {' '}
+                      / {event.maxAttendees} attending
+                    </span>
+                  </p>
+                  <p className="text-zinc-500">
+                    {isFull ? 'This event is at capacity' : `${spotsLeft} spot${spotsLeft === 1 ? '' : 's'} left`}
+                  </p>
+                </MetaRow>
+                <MetaRow icon={Star}>
+                  <p className="font-medium text-white">
+                    {avgRating.toFixed(1)}
+                    <span className="font-normal text-zinc-500"> / 5</span>
+                  </p>
+                  <p className="text-zinc-500">{ratingCount} rating{ratingCount === 1 ? '' : 's'}</p>
+                </MetaRow>
+              </div>
+            </motion.div>
+
+            {event.description?.trim() ? (
+              <SectionCard title="About this event" delay={0.05}>
+                <p className="whitespace-pre-wrap">{event.description}</p>
+              </SectionCard>
+            ) : null}
+            {event.activities?.trim() ? (
+              <SectionCard title="What we'll do" delay={0.08}>
+                <p className="whitespace-pre-wrap">{event.activities}</p>
+              </SectionCard>
+            ) : null}
+            {event.expectations?.trim() ? (
+              <SectionCard title="What to expect" delay={0.1}>
+                <p className="whitespace-pre-wrap">{event.expectations}</p>
+              </SectionCard>
+            ) : null}
+            {event.aboutYou?.trim() ? (
+              <SectionCard title="About the host" subtitle="From the organizer" delay={0.12}>
+                <p className="whitespace-pre-wrap">{event.aboutYou}</p>
+              </SectionCard>
+            ) : null}
+          </div>
+
+          <aside className="lg:col-span-5 xl:col-span-4">
+            <div className="sticky top-28 space-y-4">
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08 }}
+                className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/40"
+              >
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={handleJoin}
+                    disabled={isLoading || isOwner || isFull}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-900/30 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        Joining…
+                      </>
+                    ) : isOwner ? (
+                      <>
+                        <Shield className="h-4 w-4" aria-hidden />
+                        You&apos;re the host
+                      </>
+                    ) : isAttending ? (
+                      "You're in"
+                    ) : isFull ? (
+                      'Event full'
+                    ) : (
+                      'Join event'
+                    )}
+                  </button>
+
+                  {(isOwner || isAttending) && (
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleOpenChat}
+                        disabled={isOpeningChat}
+                        className="relative flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15 disabled:opacity-50"
+                      >
+                        <MessageCircle className="h-4 w-4 shrink-0" aria-hidden />
+                        <span>{isOpeningChat ? 'Opening…' : 'Event chat'}</span>
+                        {chatPreview.totalUnread > 0 ? (
+                          <span className="absolute right-3 top-1/2 min-w-[1.35rem] -translate-y-1/2 rounded-full bg-rose-500 px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white">
+                            {chatPreview.totalUnread > 99 ? '99+' : chatPreview.totalUnread}
+                          </span>
+                        ) : null}
+                      </button>
+                      {chatPreview.totalUnread > 0 ? (
+                        <p className="text-center text-xs leading-snug text-amber-200/90">
+                          {chatPreview.totalUnread}{' '}
+                          {chatPreview.totalUnread === 1 ? 'new message' : 'new messages'}
+                          {chatPreview.fromNames.length > 0
+                            ? ` · From ${chatPreview.fromNames.join(', ')}${
+                                chatPreview.fromNames.length >= 4 ? '…' : ''
+                              }`
+                            : ''}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={handleShareEvent}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800/50 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-600 hover:bg-zinc-800"
+                      title="Share"
+                    >
+                      <Share2 className="h-4 w-4" aria-hidden />
+                      Share
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleToggleFavorite}
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-medium transition ${
+                        isFavorited
+                          ? 'border-rose-500/40 bg-rose-500/15 text-rose-200 hover:bg-rose-500/20'
+                          : 'border-zinc-700 bg-zinc-800/50 text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800'
+                      }`}
+                      title={isFavorited ? 'Remove from favorites' : 'Save'}
+                    >
+                      <Heart className="h-4 w-4" fill={isFavorited ? 'currentColor' : 'none'} aria-hidden />
+                      {isFavorited ? 'Saved' : 'Save'}
+                    </button>
+                  </div>
+
+                  <p className="text-center text-xs text-zinc-500">
+                    Saved by {favoriteCount} {favoriteCount === 1 ? 'person' : 'people'}
+                  </p>
+                </div>
+              </motion.div>
+
+              {isOwner && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.12 }}
+                  className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 ring-1 ring-amber-500/10"
+                >
+                  <h3 className="text-sm font-semibold text-amber-100">Host tools</h3>
+                  <p className="mt-1 text-xs text-zinc-500">Manage this event and attendees.</p>
+                  <div className="mt-4 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={handleExportParticipants}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-800 py-2.5 text-sm font-medium text-white ring-1 ring-zinc-700 transition hover:bg-zinc-700"
+                    >
+                      <Download className="h-4 w-4" aria-hidden />
+                      Export CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateWhatsappGroup}
+                      className="rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                    >
+                      WhatsApp group
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteEvent}
+                      className="rounded-lg border border-red-500/40 bg-red-500/10 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
+                    >
+                      Delete event
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </aside>
+          </div>
+
+        {isOwner && (
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-12 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-xl shadow-black/30"
+          >
+            <div className="border-b border-zinc-800/80 px-6 py-5">
+              <h2 className="text-lg font-semibold text-white">Participants</h2>
+              <p className="mt-1 text-sm text-zinc-500">{participants.length} registered</p>
+            </div>
+            <div className="overflow-x-auto">
+              {participants.length === 0 ? (
+                <p className="px-6 py-10 text-center text-sm text-zinc-500">No participants yet.</p>
+              ) : (
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-800/80 bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
+                      <th className="px-6 py-3 font-medium">Name</th>
+                      <th className="px-6 py-3 font-medium">Phone</th>
+                      <th className="px-6 py-3 font-medium">WhatsApp</th>
+                      <th className="px-6 py-3 font-medium">Profile</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/60">
+                    {participants.map((p) => (
+                      <tr key={p._id} className="text-zinc-300 transition hover:bg-zinc-800/30">
+                        <td className="px-6 py-4 font-medium text-white">{p.fullName}</td>
+                        <td className="px-6 py-4">{p.phoneNumber}</td>
+                        <td className="px-6 py-4">{p.whatsappNumber || p.phoneNumber}</td>
+                        <td className="px-6 py-4 text-zinc-500">{p.profileId}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </motion.section>
+        )}
+
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-12 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl shadow-black/30 sm:p-8"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-zinc-800/60 pb-6">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight text-white">Ratings & reviews</h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                {avgRating.toFixed(1)} average · {ratingCount} review{ratingCount === 1 ? '' : 's'}
+              </p>
+              {isOwner ? (
+                <p className="mt-2 max-w-xl text-sm text-zinc-400">
+                  Reviews below are from people who joined your event. You can see their name
+                  {token ? ' and email' : ''} to follow up.
+                </p>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-0.5 text-amber-400" aria-hidden>
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star
+                  key={s}
+                  className="h-5 w-5"
+                  fill={s <= Math.round(avgRating) ? 'currentColor' : 'none'}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-6">
+            {mayLeaveReview && (
+              <form
+                onSubmit={handleSubmitRating}
+                className="rounded-xl border border-zinc-800 bg-zinc-950 p-5"
+              >
+                <p className="font-semibold text-white">Rate this event</p>
+                <p className="mt-1 text-xs text-zinc-500">You joined this event — share a star rating and optional note.</p>
+                <div className="mt-3 flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRatingValue(star)}
+                      className={`rounded-md p-1 transition ${star <= ratingValue ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-500'}`}
+                      aria-label={`${star} stars`}
+                    >
+                      <Star size={26} fill={star <= ratingValue ? 'currentColor' : 'none'} />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={ratingReview}
+                  onChange={(e) => setRatingReview(e.target.value)}
+                  className="mt-4 w-full rounded-xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  placeholder="Share what stood out (optional)"
+                  maxLength={500}
+                  rows={3}
+                />
+                <button
+                  type="submit"
+                  disabled={isSubmittingRating || !mayLeaveReview}
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-45"
+                >
+                  {isSubmittingRating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Submitting…
+                    </>
+                  ) : myRating ? (
+                    'Update rating'
+                  ) : (
+                    'Submit rating'
+                  )}
+                </button>
+              </form>
+            )}
+
+            {!isOwner && !isAttending && token ? (
+              <p className="text-sm text-zinc-500">Join this event to rate it and leave a review.</p>
+            ) : null}
+
+            <ul className="space-y-3">
+              {(ratingSummary.ratings || []).map((row) => {
+                const reviewedAt = row.createdAt ? new Date(row.createdAt) : null
+                return (
+                <li
+                  key={row.id}
+                  className="rounded-xl border border-zinc-800 bg-zinc-950 px-5 py-4 transition hover:border-zinc-600"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-white">{row.user?.name || 'Attendee'}</p>
+                      {isOwner && row.user?.email ? (
+                        <p className="mt-0.5 text-xs text-zinc-500">{row.user.email}</p>
+                      ) : null}
+                      {reviewedAt ? (
+                        <p className="mt-1 text-xs text-zinc-600">{reviewedAt.toLocaleString()}</p>
+                      ) : null}
+                    </div>
+                    <p className="text-amber-400 text-sm shrink-0" aria-label={`${row.rating} of 5 stars`}>
+                      {'★'.repeat(row.rating)}
+                      <span className="text-zinc-600">{'☆'.repeat(5 - row.rating)}</span>
+                    </p>
+                  </div>
+                  {row.review ? <p className="mt-2 text-sm leading-relaxed text-zinc-400">{row.review}</p> : null}
+                </li>
+                )
+              })}
+            </ul>
+            {(!ratingSummary.ratings || ratingSummary.ratings.length === 0) && (
+              <p className="py-6 text-center text-sm text-zinc-500">
+                {isOwner
+                  ? 'No reviews yet. When attendees join and submit a rating, it will show up here.'
+                  : 'No ratings yet — join the event to leave the first one.'}
+              </p>
+            )}
+          </div>
+        </motion.section>
+        </div>
+      </main>
     </div>
   )
 }
-

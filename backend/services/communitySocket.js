@@ -3,6 +3,11 @@ import { sanitizeText } from '../utils/sanitize.js';
 import Event from '../models/Event.js';
 import EventParticipant from '../models/EventParticipant.js';
 import CommunityMessage from '../models/CommunityMessage.js';
+import {
+  ensureCommunityEventAccess,
+  resolveSocketUserPgId,
+  canAccessChatPg,
+} from './pgEventBridge.js';
 
 const socketMessageCounter = new Map();
 
@@ -25,49 +30,6 @@ function allowMessageForSocket(userId) {
   entry.count += 1;
   socketMessageCounter.set(key, entry);
   return true;
-}
-
-async function canAccessEvent(eventId, userId, pool) {
-  const { rows } = await pool.query(
-    `SELECT 1
-       FROM events e
-      WHERE e.id = $1
-        AND e.deleted_at IS NULL
-        AND (
-          e.creator_id = $2 OR EXISTS (
-            SELECT 1
-              FROM event_participants ep
-             WHERE ep.event_id = e.id
-               AND ep.user_id = $2
-               AND ep.status = 'JOINED'
-               AND ep.deleted_at IS NULL
-          )
-        )`,
-    [eventId, userId]
-  );
-  return rows.length > 0;
-}
-
-async function canAccessChat(chatId, userId, pool) {
-  const { rows } = await pool.query(
-    `SELECT 1
-       FROM chats c
-       JOIN events e ON e.id = c.event_id
-      WHERE c.id = $1
-        AND c.deleted_at IS NULL
-        AND (
-          e.creator_id = $2 OR EXISTS (
-            SELECT 1
-              FROM event_participants ep
-             WHERE ep.event_id = c.event_id
-               AND ep.user_id = $2
-               AND ep.status = 'JOINED'
-               AND ep.deleted_at IS NULL
-          )
-        )`,
-    [chatId, userId]
-  );
-  return rows.length > 0;
 }
 
 export function registerCommunitySocketHandlers(io, socket) {
@@ -182,13 +144,22 @@ export function registerCommunitySocketHandlers(io, socket) {
 
   socket.on('chat:join', async ({ eventId, chatId }, ack) => {
     try {
-      const eventAllowed = await canAccessEvent(eventId, socket.userId, pool);
+      const pgUserId = await resolveSocketUserPgId(pool, socket.userId);
+      if (!pgUserId) {
+        console.warn('[community-socket][pg] join rejected unknown user', { tokenUserId: String(socket.userId) });
+        return ack?.({ ok: false, error: 'Forbidden' });
+      }
+
+      const { ok: eventAllowed } = await ensureCommunityEventAccess(pool, eventId, {
+        id: pgUserId,
+        legacy_user_id: String(socket.userId),
+      });
       if (!eventAllowed) {
         console.warn('[community-socket][pg] join rejected forbidden event', { userId: String(socket.userId), eventId, chatId });
         return ack?.({ ok: false, error: 'Forbidden' });
       }
 
-      const chatAllowed = await canAccessChat(chatId, socket.userId, pool);
+      const chatAllowed = await canAccessChatPg(pool, chatId, pgUserId);
       if (!chatAllowed) {
         console.warn('[community-socket][pg] join rejected forbidden chat', { userId: String(socket.userId), eventId, chatId });
         return ack?.({ ok: false, error: 'Forbidden' });
@@ -199,7 +170,7 @@ export function registerCommunitySocketHandlers(io, socket) {
          VALUES ($1, $2, NULL, NULL)
          ON CONFLICT (chat_id, user_id)
          DO UPDATE SET left_at = NULL, deleted_at = NULL, updated_at = NOW()`,
-        [chatId, socket.userId]
+        [chatId, pgUserId]
       );
 
       console.log('[community-socket][pg] join ok', { userId: String(socket.userId), eventId, chatId });
@@ -213,7 +184,10 @@ export function registerCommunitySocketHandlers(io, socket) {
 
   socket.on('message:send', async ({ chatId, content, clientTempId }, ack) => {
     try {
-      if (!allowMessageForSocket(socket.userId)) {
+      const pgUserId = await resolveSocketUserPgId(pool, socket.userId);
+      if (!pgUserId) return ack?.({ ok: false, error: 'Forbidden' });
+
+      if (!allowMessageForSocket(pgUserId)) {
         return ack?.({ ok: false, error: 'Rate limit exceeded' });
       }
 
@@ -227,7 +201,7 @@ export function registerCommunitySocketHandlers(io, socket) {
             AND user_id = $2
             AND left_at IS NULL
             AND deleted_at IS NULL`,
-        [chatId, socket.userId]
+        [chatId, pgUserId]
       );
       if (!memberCheck.rows.length) return ack?.({ ok: false, error: 'Not a chat member' });
       if (memberCheck.rows[0].is_blocked) return ack?.({ ok: false, error: 'Blocked in this chat' });
@@ -236,9 +210,22 @@ export function registerCommunitySocketHandlers(io, socket) {
         `INSERT INTO messages (chat_id, sender_id, content, status)
          VALUES ($1, $2, $3, 'SENT')
          RETURNING id, chat_id, sender_id, content, status, sent_at`,
-        [chatId, socket.userId, safeContent]
+        [chatId, pgUserId, safeContent]
       );
-      const message = inserted.rows[0];
+      const row = inserted.rows[0];
+      const nameRow = await pool.query(
+        `SELECT COALESCE(
+            NULLIF(TRIM(full_name), ''),
+            NULLIF(SPLIT_PART(LOWER(TRIM(COALESCE(email, ''))), '@', 1), ''),
+            'User ' || SUBSTRING(REPLACE(id::text, '-', ''), 1, 8)
+          ) AS display_name
+           FROM users WHERE id = $1`,
+        [pgUserId]
+      );
+      const message = {
+        ...row,
+        sender_name: nameRow.rows[0]?.display_name || 'Member',
+      };
 
       io.to(`chat:${chatId}`).emit('message:new', message);
 
@@ -259,10 +246,10 @@ export function registerCommunitySocketHandlers(io, socket) {
             AND cm.user_id <> $4
             AND cm.left_at IS NULL
             AND cm.deleted_at IS NULL`,
-        [chatId, 'New chat message', JSON.stringify({ chatId, messageId: message.id }), socket.userId]
+        [chatId, 'New chat message', JSON.stringify({ chatId, messageId: message.id }), pgUserId]
       );
 
-      return ack?.({ ok: true, message, clientTempId });
+      return ack?.({ ok: true, message: { ...message, is_mine: true }, clientTempId });
     } catch (error) {
       console.warn('[community-socket][pg] send failed', error?.message || error);
       return ack?.({ ok: false, error: 'Send failed' });
@@ -271,7 +258,9 @@ export function registerCommunitySocketHandlers(io, socket) {
 
   socket.on('message:seen', async ({ chatId, messageId }) => {
     try {
-      const allowed = await canAccessChat(chatId, socket.userId, pool);
+      const pgUserId = await resolveSocketUserPgId(pool, socket.userId);
+      if (!pgUserId) return;
+      const allowed = await canAccessChatPg(pool, chatId, pgUserId);
       if (!allowed) return;
 
       await pool.query(

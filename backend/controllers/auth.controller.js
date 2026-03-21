@@ -1,8 +1,9 @@
+import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import env from '../config/env.js';
-import { generateOtpCode, sendOtpEmail } from '../services/authService.js';
+import { generateOtpCode, sendOtpEmail, sendPasswordResetEmail } from '../services/authService.js';
 import { uploadIfBase64, deleteImage as cloudinaryDelete } from '../services/cloudinaryService.js';
 
 export async function signup(req, res) {
@@ -73,6 +74,71 @@ export async function login(req, res) {
   }
 
   return res.json({ message: 'OTP sent to your email' });
+}
+
+const FORGOT_OK_MESSAGE = 'You will receive password reset instructions shortly.';
+
+export async function forgotPassword(req, res) {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.json({ message: FORGOT_OK_MESSAGE });
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  user.passwordResetToken = token;
+  user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+  await user.save();
+
+  const base = (env.publicAppUrl || env.frontendUrl || 'http://localhost:5173').replace(/\/$/, '');
+  const resetUrl = `${base}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+
+  if (/localhost|127\.0\.0\.1/i.test(base)) {
+    console.warn(
+      '[auth] Password reset link uses localhost — it will not open on another device (e.g. phone). '
+        + 'Set PUBLIC_APP_URL or FRONTEND_URL to your deployed app (https://…) or your PC LAN IP for Wi‑Fi testing.',
+    );
+  }
+
+  const sent = await sendPasswordResetEmail(email, resetUrl);
+  if (!sent) {
+    if (env.nodeEnv !== 'production') {
+      console.warn('[dev] Password reset email not sent. Link:', resetUrl);
+      return res.json({
+        message: 'Email could not be sent (check RESEND_API_KEY or EMAIL_USER/EMAIL_PASS in .env).',
+        devResetUrl: resetUrl,
+      });
+    }
+    return res.status(503).json({ message: 'Could not send reset email. Try again later.' });
+  }
+
+  return res.json({ message: FORGOT_OK_MESSAGE });
+}
+
+export async function resetPassword(req, res) {
+  const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
+  const tokenStr = String(req.body?.token || '').trim();
+  const password = req.body?.password;
+
+  const user = await User.findOne({
+    email: normalizedEmail,
+    passwordResetToken: tokenStr,
+    passwordResetExpires: { $gt: new Date() },
+  });
+  if (!user) {
+    return res.status(400).json({
+      message: 'Invalid or expired reset link. Request a new password reset from the login page.',
+    });
+  }
+
+  user.password = await bcrypt.hash(String(password), 10);
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  user.otp = undefined;
+  user.otpExpiry = undefined;
+  await user.save();
+
+  return res.json({ message: 'Password updated. You can sign in with your new password.' });
 }
 
 export async function verifyOtp(req, res) {

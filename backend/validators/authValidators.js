@@ -31,3 +31,25 @@ export function validateVerifyOtp(req, res, next) {
   }
   next();
 }
+
+export function validateForgotPassword(req, res, next) {
+  const { email } = req.body || {};
+  if (!email || !isEmail(email)) {
+    return res.status(400).json({ message: 'A valid email address is required' });
+  }
+  next();
+}
+
+export function validateResetPassword(req, res, next) {
+  const { email, token, password } = req.body || {};
+  if (!email || !isEmail(email)) {
+    return res.status(400).json({ message: 'A valid email address is required' });
+  }
+  if (!token || String(token).length < 10) {
+    return res.status(400).json({ message: 'Reset token is missing or invalid' });
+  }
+  if (!password || String(password).length < 8) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters' });
+  }
+  next();
+}

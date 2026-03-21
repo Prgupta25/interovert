@@ -52,10 +52,14 @@ CREATE TABLE IF NOT EXISTS events (
   starts_at TIMESTAMPTZ NOT NULL,
   category TEXT,
   max_attendees INT NOT NULL CHECK (max_attendees > 0),
+  legacy_event_id TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ
 );
+
+ALTER TABLE events ADD COLUMN IF NOT EXISTS legacy_event_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_events_legacy_event_id ON events (legacy_event_id);
 
 CREATE TABLE IF NOT EXISTS event_participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,12 +97,15 @@ CREATE TABLE IF NOT EXISTS chat_members (
   blocked_by UUID REFERENCES users(id),
   blocked_reason TEXT,
   joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_read_at TIMESTAMPTZ,
   left_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ,
   UNIQUE (chat_id, user_id)
 );
+
+ALTER TABLE chat_members ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

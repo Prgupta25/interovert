@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { requireAuth } from '../middlewares/auth.js';
-import asyncHandler from '../middlewares/asyncHandler.js';
+import { requireAuth, optionalAuth } from '../middlewares/auth.js';
+ import asyncHandler from '../middlewares/asyncHandler.js';
 import {
   validateCreateEvent,
   validateEventIdParam,
@@ -28,7 +28,7 @@ const router = Router();
 
 router.get('/', asyncHandler(listEvents));
 router.get('/:eventId', validateEventIdParam, asyncHandler(getEvent));
-router.get('/:eventId/ratings', validateEventIdParam, asyncHandler(getEventRatings));
+router.get('/:eventId/ratings', validateEventIdParam, optionalAuth, asyncHandler(getEventRatings));
 router.get('/:eventId/join-status', requireAuth, validateEventIdParam, asyncHandler(getJoinStatus));
 router.get('/:eventId/interaction-status', requireAuth, validateEventIdParam, asyncHandler(getEventInteractionStatus));
 router.post('/', requireAuth, validateCreateEvent, asyncHandler(createEvent));

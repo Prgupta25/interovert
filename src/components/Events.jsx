@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Plus } from 'lucide-react'
+import { Plus, Sparkles, Compass } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import apiClient from '../services/apiClient'
 import { getSocket } from '../utils/socket'
@@ -49,7 +49,9 @@ export default function Events() {
 
   useEffect(() => {
     debouncedLoad()
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [debouncedLoad])
 
   useEffect(() => {
@@ -67,21 +69,44 @@ export default function Events() {
   }, [])
 
   return (
-    <div className="min-h-screen pt-28 bg-gray-900 text-white p-4">
+    <div className="relative min-h-screen overflow-hidden bg-zinc-950 pt-28 text-zinc-100">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(99,102,241,0.18),transparent_50%)]"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_50%,rgba(139,92,246,0.08),transparent_45%)]"
+        aria-hidden
+      />
 
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">Events</h1>
+      <div className="relative mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+        <motion.header
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-10 flex flex-col gap-6 border-b border-zinc-800/80 pb-10 sm:flex-row sm:items-end sm:justify-between"
+        >
+          <div className="max-w-2xl">
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-400/90">
+              <Compass className="h-3.5 w-3.5" aria-hidden />
+              Discover
+            </p>
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-white sm:text-5xl">Events</h1>
+            <p className="mt-3 text-base leading-relaxed text-zinc-400">
+              Meet people who share your interests—browse gatherings, filter by vibe, and host your own.
+            </p>
+          </div>
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 bg-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:from-indigo-500 hover:to-violet-500 sm:self-auto"
           >
-            <Plus size={20} />
-            Add Event
+            <Plus className="h-5 w-5" strokeWidth={2.5} />
+            Create event
           </motion.button>
-        </div>
+        </motion.header>
 
         <EventFilters
           categories={eventCategories}
@@ -99,9 +124,36 @@ export default function Events() {
           setDateTo={setDateTo}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events.map((event) => <EventCard key={event._id} event={event} />)}
-        </div>
+        {events.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 py-20 text-center ring-1 ring-white/[0.02]"
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-400 ring-1 ring-indigo-500/25">
+              <Sparkles className="h-7 w-7" />
+            </span>
+            <h2 className="mt-6 text-lg font-semibold text-white">No events match your filters</h2>
+            <p className="mt-2 max-w-sm text-sm text-zinc-500">
+              Try another category, widen your dates, or be the first to host something new.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="mt-8 rounded-xl bg-zinc-800 px-5 py-2.5 text-sm font-medium text-white ring-1 ring-zinc-600 transition hover:bg-zinc-700"
+            >
+              Create the first event
+            </button>
+          </motion.div>
+        ) : (
+          <ul className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {events.map((event, i) => (
+              <li key={event._id}>
+                <EventCard event={event} index={i} />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <CreateEventModal

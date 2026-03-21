@@ -1,19 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { API_URL } from '../config/config';
 import { getAuthToken } from '../utils/session';
 import apiClient from '../services/apiClient';
 
+function normId(v) {
+  return String(v ?? '')
+    .toLowerCase()
+    .replace(/-/g, '');
+}
+
 export function useEventChat(eventId, chatId) {
   const [messages, setMessages] = useState([]);
   const [connected, setConnected] = useState(false);
   const [connectionError, setConnectionError] = useState('');
+  const [messagesReady, setMessagesReady] = useState(false);
+  const viewerIdRef = useRef('');
 
   const upsertMessage = (incoming) => {
     if (!incoming?.id) return;
+    const vid = viewerIdRef.current;
+    const isMine =
+      incoming.is_mine !== undefined
+        ? incoming.is_mine
+        : Boolean(vid && normId(incoming.sender_id) === normId(vid));
+    const normalized = { ...incoming, is_mine: Boolean(isMine) };
     setMessages((prev) => {
-      const exists = prev.some((m) => String(m.id) === String(incoming.id));
-      return exists ? prev : [...prev, incoming];
+      const exists = prev.some((m) => String(m.id) === String(normalized.id));
+      return exists ? prev : [...prev, normalized];
     });
   };
 
@@ -30,20 +44,46 @@ export function useEventChat(eventId, chatId) {
   }, [eventId, chatId]);
 
   useEffect(() => {
+    if (!chatId) return undefined;
+    return () => {
+      apiClient.post(`/api/community/chats/${encodeURIComponent(chatId)}/read`).catch(() => {});
+    };
+  }, [chatId]);
+
+  useEffect(() => {
     let ignore = false;
+    setMessagesReady(false);
     const loadMessages = async () => {
-      if (!chatId) return;
+      if (!chatId) {
+        if (!ignore) setMessagesReady(true);
+        return;
+      }
       try {
         const { data } = await apiClient.get(`/api/community/chats/${chatId}/messages?limit=100`);
         if (!ignore) {
-          setMessages(Array.isArray(data?.messages) ? data.messages : []);
+          const list = Array.isArray(data?.messages) ? data.messages : [];
+          const vid = String(data?.viewerId || data?.viewer_id || '');
+          if (vid) viewerIdRef.current = vid;
+          setMessages(
+            list.map((m) => ({
+              ...m,
+              is_mine:
+                m.is_mine !== undefined
+                  ? m.is_mine
+                  : Boolean(vid && normId(m.sender_id) === normId(vid)),
+            }))
+          );
         }
       } catch {
         if (!ignore) setMessages([]);
+      } finally {
+        if (!ignore) setMessagesReady(true);
       }
     };
     loadMessages();
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+    };
   }, [chatId]);
 
   useEffect(() => {
@@ -64,7 +104,7 @@ export function useEventChat(eventId, chatId) {
     });
 
     socket.on('message:new', (message) => {
-      if (message.chat_id !== chatId) return;
+      if (String(message.chat_id) !== String(chatId)) return;
       upsertMessage(message);
     });
     socket.on('message:status', ({ messageId, status }) => {
@@ -131,6 +171,7 @@ export function useEventChat(eventId, chatId) {
   return {
     connected,
     connectionError,
+    messagesReady,
     messages,
     sendMessage,
     markSeen,

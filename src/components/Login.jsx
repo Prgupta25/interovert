@@ -163,13 +163,12 @@ export default function Login() {
                 </label>
               </div>
               <div className="text-sm">
-                <button
-                  type="button"
-                  onClick={() => toast('Password reset is coming soon.')}
+                <Link
+                  to="/forgot-password"
                   className="font-medium text-indigo-400 hover:text-indigo-300"
                 >
                   Forgot your password?
-                </button>
+                </Link>
               </div>
             </div>
             <div>

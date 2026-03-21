@@ -4,8 +4,18 @@ import { sanitizeText, toSafeInt } from '../utils/sanitize.js';
 import Event from '../models/Event.js';
 import EventParticipant from '../models/EventParticipant.js';
 import CommunityMessage from '../models/CommunityMessage.js';
+import {
+  resolvePgEventId,
+  upsertMongoEventToPostgres,
+  ensureCommunityEventAccess,
+  canAccessChatPg,
+} from '../services/pgEventBridge.js';
 
 const PRIVACY_OPTIONS = new Set(['PUBLIC', 'EVENT_PARTICIPANTS_ONLY', 'PRIVATE']);
+
+/** SQL: label for users row alias `u` (full_name often empty for synced accounts). */
+const SQL_USER_DISPLAY_NAME =
+  "COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(SPLIT_PART(LOWER(TRIM(COALESCE(u.email, ''))), '@', 1), ''), 'User ' || SUBSTRING(REPLACE(u.id::text, '-', ''), 1, 8))";
 
 function makeOtpCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -32,27 +42,6 @@ async function resolveUserId(pool, idOrLegacy) {
   return rows[0]?.id || null;
 }
 
-async function canAccessEvent(eventId, userId, pool) {
-  const { rows } = await pool.query(
-    `SELECT 1
-       FROM events e
-      WHERE e.id = $1
-        AND e.deleted_at IS NULL
-        AND (
-          e.creator_id = $2 OR EXISTS (
-            SELECT 1
-              FROM event_participants ep
-             WHERE ep.event_id = e.id
-               AND ep.user_id = $2
-               AND ep.status = 'JOINED'
-               AND ep.deleted_at IS NULL
-          )
-        )`,
-    [eventId, userId]
-  );
-  return rows.length > 0;
-}
-
 async function canAccessEventMongo(eventId, userId) {
   const event = await Event.findById(eventId).select('_id owner_id createdAt').lean();
   if (!event) return { allowed: false, event: null };
@@ -70,25 +59,7 @@ async function canAccessEventMongo(eventId, userId) {
 }
 
 async function canAccessChat(chatId, userId, pool) {
-  const { rows } = await pool.query(
-    `SELECT 1
-       FROM chats c
-       JOIN events e ON e.id = c.event_id
-      WHERE c.id = $1
-        AND c.deleted_at IS NULL
-        AND (
-          e.creator_id = $2 OR EXISTS (
-            SELECT 1
-              FROM event_participants ep
-             WHERE ep.event_id = c.event_id
-               AND ep.user_id = $2
-               AND ep.status = 'JOINED'
-               AND ep.deleted_at IS NULL
-          )
-        )`,
-    [chatId, userId]
-  );
-  return rows.length > 0;
+  return canAccessChatPg(pool, chatId, userId);
 }
 
 async function ensureEventGroupChat(eventId, userId, pool) {
@@ -125,7 +96,8 @@ export async function getPublicProfile(req, res) {
   const targetUserId = await resolveUserId(pool, req.params.userId);
   if (!targetUserId) return res.status(404).json({ message: 'User not found' });
   const viewerId = req.user.id;
-  const eventId = req.query.eventId || null;
+  const rawEventId = req.query.eventId || null;
+  const eventUuid = rawEventId ? await resolvePgEventId(pool, rawEventId) : null;
   const includeViewNotification = req.query.notify === 'true';
 
   const userResult = await pool.query(
@@ -154,9 +126,9 @@ export async function getPublicProfile(req, res) {
             AND ep2.status = 'JOINED'
             AND ep1.deleted_at IS NULL
             AND ep2.deleted_at IS NULL
-            ${eventId ? 'AND ep1.event_id = $3' : ''}
+            ${eventUuid ? 'AND ep1.event_id = $3' : ''}
           LIMIT 1`,
-        eventId ? [viewerId, targetUserId, eventId] : [viewerId, targetUserId]
+        eventUuid ? [viewerId, targetUserId, eventUuid] : [viewerId, targetUserId]
       );
       canView = rows.length > 0;
     }
@@ -181,7 +153,7 @@ export async function getPublicProfile(req, res) {
     await pool.query(
       `INSERT INTO notifications (user_id, type, title, body, payload)
        VALUES ($1, 'PROFILE_VIEWED', 'Profile viewed', $2, $3::jsonb)`,
-      [targetUserId, 'Someone viewed your profile', JSON.stringify({ viewerId, eventId })]
+      [targetUserId, 'Someone viewed your profile', JSON.stringify({ viewerId, eventId: rawEventId || eventUuid })]
     );
   }
 
@@ -379,12 +351,26 @@ export async function joinCommunityEvent(req, res) {
   const pool = await requirePg(res);
   if (!pool) return;
 
-  const eventId = req.params.eventId;
+  const raw = req.params.eventId;
   const userId = req.user.id;
+
+  let pgEventId = await resolvePgEventId(pool, raw);
+  if (!pgEventId) {
+    const ev = await Event.findById(raw)
+      .populate({ path: 'address', select: 'formattedAddress line1 city' })
+      .lean();
+    if (!ev) return res.status(404).json({ message: 'Event not found' });
+    pgEventId = await upsertMongoEventToPostgres(pool, ev);
+    if (!pgEventId) {
+      return res.status(400).json({
+        message: 'Community chat requires the event host to have signed in at least once (synced account).',
+      });
+    }
+  }
 
   const eventResult = await pool.query(
     `SELECT id, creator_id, title FROM events WHERE id = $1 AND deleted_at IS NULL`,
-    [eventId]
+    [pgEventId]
   );
   if (!eventResult.rows.length) return res.status(404).json({ message: 'Event not found' });
 
@@ -393,10 +379,10 @@ export async function joinCommunityEvent(req, res) {
      VALUES ($1, $2, CASE WHEN $2 = $3 THEN 'CREATOR' ELSE 'PARTICIPANT' END, 'JOINED')
      ON CONFLICT (event_id, user_id)
      DO UPDATE SET status = 'JOINED', left_at = NULL, deleted_at = NULL, updated_at = NOW()`,
-    [eventId, userId, eventResult.rows[0].creator_id]
+    [pgEventId, userId, eventResult.rows[0].creator_id]
   );
 
-  const groupChatId = await ensureEventGroupChat(eventId, userId, pool);
+  const groupChatId = await ensureEventGroupChat(pgEventId, userId, pool);
 
   if (String(eventResult.rows[0].creator_id) !== String(userId)) {
     await pool.query(
@@ -405,14 +391,14 @@ export async function joinCommunityEvent(req, res) {
       [
         eventResult.rows[0].creator_id,
         `${req.user.full_name} joined ${eventResult.rows[0].title}`,
-        JSON.stringify({ eventId, participantId: userId }),
+        JSON.stringify({ eventId: raw, participantId: userId }),
       ]
     );
   }
 
   return res.status(201).json({
     message: 'Joined event',
-    eventId,
+    eventId: raw,
     groupChatId,
   });
 }
@@ -421,11 +407,13 @@ export async function leaveCommunityEvent(req, res) {
   const pool = await requirePg(res);
   if (!pool) return;
 
-  const eventId = req.params.eventId;
+  const pgEventId = await resolvePgEventId(pool, req.params.eventId);
+  if (!pgEventId) return res.status(404).json({ message: 'Event not found' });
+
   const userId = req.user.id;
   const eventResult = await pool.query(
     `SELECT creator_id FROM events WHERE id = $1 AND deleted_at IS NULL`,
-    [eventId]
+    [pgEventId]
   );
   if (!eventResult.rows.length) return res.status(404).json({ message: 'Event not found' });
   if (String(eventResult.rows[0].creator_id) === String(userId)) {
@@ -440,7 +428,7 @@ export async function leaveCommunityEvent(req, res) {
       WHERE event_id = $1
         AND user_id = $2
         AND deleted_at IS NULL`,
-    [eventId, userId]
+    [pgEventId, userId]
   );
 
   await pool.query(
@@ -452,7 +440,7 @@ export async function leaveCommunityEvent(req, res) {
         AND c.event_id = $1
         AND cm.user_id = $2
         AND cm.deleted_at IS NULL`,
-    [eventId, userId]
+    [pgEventId, userId]
   );
 
   return res.json({ message: 'Left event and removed from event chats' });
@@ -472,41 +460,131 @@ export async function listEventChats(req, res) {
           type: 'EVENT_GROUP',
           event_id: String(event._id),
           created_at: event.createdAt || new Date().toISOString(),
+          unreadCount: 0,
+          lastMessagePreview: null,
+          lastSenderName: null,
+          pendingSenderNames: [],
+          otherUserName: null,
+          otherUserId: null,
+          messageCount: 0,
         },
       ],
+      totalUnread: 0,
+      viewerId: String(req.user.legacy_user_id || req.user.id),
     });
   }
 
-  const eventId = req.params.eventId;
-  const allowed = await canAccessEvent(eventId, req.user.id, pool);
-  if (!allowed) return res.status(403).json({ message: 'Not allowed to access event chats' });
+  const { pgEventId, ok } = await ensureCommunityEventAccess(pool, req.params.eventId, req.user);
+  if (!ok) return res.status(403).json({ message: 'Not allowed to access event chats' });
 
-  await ensureEventGroupChat(eventId, req.user.id, pool);
+  await ensureEventGroupChat(pgEventId, req.user.id, pool);
 
   const { rows } = await pool.query(
-    `SELECT c.id, c.type, c.event_id, c.created_at
+    `SELECT
+       c.id,
+       c.type,
+       c.event_id,
+       c.created_at,
+       (SELECT LEFT(m2.content, 120)
+          FROM messages m2
+         WHERE m2.chat_id = c.id AND m2.deleted_at IS NULL
+         ORDER BY m2.sent_at DESC
+         LIMIT 1) AS last_message_preview,
+       (SELECT m2.sent_at
+          FROM messages m2
+         WHERE m2.chat_id = c.id AND m2.deleted_at IS NULL
+         ORDER BY m2.sent_at DESC
+         LIMIT 1) AS last_message_sent_at,
+       (SELECT ${SQL_USER_DISPLAY_NAME.replace(/\bu\./g, 'u2.')}
+          FROM messages m2
+          JOIN users u2 ON u2.id = m2.sender_id
+         WHERE m2.chat_id = c.id AND m2.deleted_at IS NULL
+         ORDER BY m2.sent_at DESC
+         LIMIT 1) AS last_sender_name,
+       (SELECT COUNT(*)::int
+          FROM messages m
+         WHERE m.chat_id = c.id
+           AND m.deleted_at IS NULL
+           AND m.sender_id <> $1::uuid
+           AND m.sent_at > COALESCE(cm.last_read_at, cm.joined_at)) AS unread_count,
+       (SELECT COALESCE(array_agg(DISTINCT s.label), ARRAY[]::text[])
+          FROM (
+            SELECT ${SQL_USER_DISPLAY_NAME} AS label
+              FROM messages m
+              JOIN users u ON u.id = m.sender_id
+             WHERE m.chat_id = c.id
+               AND m.deleted_at IS NULL
+               AND m.sender_id <> $1::uuid
+               AND m.sent_at > COALESCE(cm.last_read_at, cm.joined_at)
+          ) s
+         WHERE s.label IS NOT NULL) AS pending_sender_names,
+       (SELECT COUNT(*)::int FROM messages m0 WHERE m0.chat_id = c.id AND m0.deleted_at IS NULL) AS message_count,
+       ou.display_name AS other_user_name,
+       ou.id::text AS other_user_id
        FROM chats c
-      WHERE c.event_id = $1
+       INNER JOIN chat_members cm
+               ON cm.chat_id = c.id
+              AND cm.user_id = $1::uuid
+              AND cm.left_at IS NULL
+              AND cm.deleted_at IS NULL
+       LEFT JOIN LATERAL (
+         SELECT u.id, ${SQL_USER_DISPLAY_NAME} AS display_name
+           FROM chat_members cm2
+           JOIN users u ON u.id = cm2.user_id
+          WHERE cm2.chat_id = c.id
+            AND cm2.user_id <> $1::uuid
+            AND cm2.left_at IS NULL
+            AND cm2.deleted_at IS NULL
+            AND c.type = 'DIRECT'
+          LIMIT 1
+       ) ou ON true
+      WHERE c.event_id = $2
         AND c.deleted_at IS NULL
       ORDER BY c.created_at ASC`,
-    [eventId]
+    [req.user.id, pgEventId]
   );
 
-  return res.json({ chats: rows });
+  const chats = rows.map((r) => {
+    const pending = Array.isArray(r.pending_sender_names)
+      ? [...new Set(r.pending_sender_names.filter(Boolean))].slice(0, 4)
+      : [];
+    return {
+      id: r.id,
+      type: r.type,
+      event_id: r.event_id,
+      created_at: r.created_at,
+      unreadCount: Number(r.unread_count) || 0,
+      lastMessagePreview: r.last_message_preview || null,
+      lastMessageSentAt: r.last_message_sent_at || null,
+      lastSenderName: r.last_sender_name || null,
+      pendingSenderNames: pending,
+      otherUserName: r.other_user_name || null,
+      otherUserId: r.other_user_id || null,
+      messageCount: Number(r.message_count) || 0,
+    };
+  });
+
+  const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+
+  return res.json({ chats, totalUnread, viewerId: String(req.user.id) });
 }
 
 export async function createDirectChat(req, res) {
   const pool = await requirePg(res);
   if (!pool) return;
 
-  const eventId = req.params.eventId;
+  const pgEventId = req.pgEventId;
+  if (!pgEventId) {
+    return res.status(500).json({ message: 'Event context missing' });
+  }
+
   const participantId = await resolveUserId(pool, req.params.participantId);
   if (!participantId) return res.status(404).json({ message: 'Participant user not found' });
   const creatorId = req.user.id;
 
   const creatorCheck = await pool.query(
     `SELECT id FROM events WHERE id = $1 AND creator_id = $2 AND deleted_at IS NULL`,
-    [eventId, creatorId]
+    [pgEventId, creatorId]
   );
   if (!creatorCheck.rows.length) {
     return res.status(403).json({ message: 'Only event creator can create direct chats' });
@@ -519,7 +597,7 @@ export async function createDirectChat(req, res) {
         AND user_id = $2
         AND status = 'JOINED'
         AND deleted_at IS NULL`,
-    [eventId, participantId]
+    [pgEventId, participantId]
   );
   if (!participantCheck.rows.length) {
     return res.status(404).json({ message: 'Participant not found in this event' });
@@ -529,7 +607,7 @@ export async function createDirectChat(req, res) {
     `INSERT INTO chats (event_id, type, created_by)
      VALUES ($1, 'DIRECT', $2)
      RETURNING id`,
-    [eventId, creatorId]
+    [pgEventId, creatorId]
   );
   const chatId = created.rows[0].id;
 
@@ -562,18 +640,21 @@ export async function getChatMessages(req, res) {
       .limit(limit)
       .lean();
 
+    const uid = String(userId);
     const messages = docs.reverse().map((doc) => ({
       id: String(doc._id),
       chat_id: doc.chatId,
       sender_id: String(doc.senderId),
+      sender_name: null,
       content: doc.content,
       status: doc.status,
       sent_at: doc.sentAt,
       delivered_at: doc.deliveredAt,
       seen_at: doc.seenAt,
+      is_mine: String(doc.senderId) === uid,
     }));
 
-    return res.json({ messages });
+    return res.json({ messages, viewerId: uid });
   }
 
   const chatId = req.params.chatId;
@@ -585,16 +666,47 @@ export async function getChatMessages(req, res) {
   const offset = Math.max(0, toSafeInt(req.query.offset, 0));
 
   const { rows } = await pool.query(
-    `SELECT id, chat_id, sender_id, content, status, sent_at, delivered_at, seen_at
-       FROM messages
-      WHERE chat_id = $1
-        AND deleted_at IS NULL
-      ORDER BY sent_at DESC
+    `SELECT m.id, m.chat_id, m.sender_id, m.content, m.status, m.sent_at, m.delivered_at, m.seen_at,
+            ${SQL_USER_DISPLAY_NAME} AS sender_name
+       FROM messages m
+       JOIN users u ON u.id = m.sender_id
+      WHERE m.chat_id = $1
+        AND m.deleted_at IS NULL
+      ORDER BY m.sent_at DESC
       LIMIT $2 OFFSET $3`,
     [chatId, limit, offset]
   );
 
-  return res.json({ messages: rows.reverse() });
+  const uid = String(userId);
+  const norm = (v) => String(v).toLowerCase().replace(/-/g, '');
+  const messages = rows.reverse().map((m) => ({
+    ...m,
+    is_mine: norm(m.sender_id) === norm(uid),
+  }));
+
+  return res.json({ messages, viewerId: uid });
+}
+
+export async function markChatRead(req, res) {
+  const pool = getPgPool();
+  if (!pool) return res.json({ ok: true });
+
+  const chatId = req.params.chatId;
+  const userId = req.user.id;
+  const allowed = await canAccessChat(chatId, userId, pool);
+  if (!allowed) return res.status(403).json({ message: 'Unauthorized chat access' });
+
+  await pool.query(
+    `UPDATE chat_members
+        SET last_read_at = NOW(), updated_at = NOW()
+      WHERE chat_id = $1
+        AND user_id = $2
+        AND left_at IS NULL
+        AND deleted_at IS NULL`,
+    [chatId, userId]
+  );
+
+  return res.json({ ok: true });
 }
 
 export async function postChatMessage(req, res) {
@@ -625,9 +737,11 @@ export async function postChatMessage(req, res) {
         id: String(doc._id),
         chat_id: doc.chatId,
         sender_id: String(doc.senderId),
+        sender_name: null,
         content: doc.content,
         status: doc.status,
         sent_at: doc.sentAt,
+        is_mine: true,
       },
     });
   }
@@ -669,6 +783,22 @@ export async function postChatMessage(req, res) {
     [chatId, userId, content]
   );
 
+  const inserted = rows[0];
+  const nameRow = await pool.query(
+    `SELECT COALESCE(
+        NULLIF(TRIM(full_name), ''),
+        NULLIF(SPLIT_PART(LOWER(TRIM(COALESCE(email, ''))), '@', 1), ''),
+        'User ' || SUBSTRING(REPLACE(id::text, '-', ''), 1, 8)
+      ) AS display_name
+       FROM users WHERE id = $1`,
+    [userId]
+  );
+  const message = {
+    ...inserted,
+    sender_name: nameRow.rows[0]?.display_name || 'Member',
+    is_mine: true,
+  };
+
   await pool.query(
     `INSERT INTO notifications (user_id, type, title, body, payload)
      SELECT cm.user_id, 'NEW_MESSAGE', 'New message', $2, $3::jsonb
@@ -680,7 +810,7 @@ export async function postChatMessage(req, res) {
     [chatId, 'New message in your chat', JSON.stringify({ chatId, senderId: userId }), userId]
   );
 
-  return res.status(201).json({ message: rows[0] });
+  return res.status(201).json({ message });
 }
 
 export async function blockUserInChat(req, res) {

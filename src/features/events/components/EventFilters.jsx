@@ -1,5 +1,8 @@
-import React from 'react';
-import { Search, Filter, ChevronDown, Calendar } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { Search, SlidersHorizontal, ChevronDown, Calendar, X } from 'lucide-react';
+
+const inputCls =
+  'rounded-xl border border-zinc-600/60 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 [color-scheme:dark]';
 
 export default function EventFilters({
   categories,
@@ -16,101 +19,111 @@ export default function EventFilters({
   dateTo,
   setDateTo,
 }) {
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const close = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setFilterMenuOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [filterMenuOpen, setFilterMenuOpen]);
+
+  const pill = (active) =>
+    `shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${
+      active
+        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/40 ring-1 ring-white/10'
+        : 'bg-zinc-800/80 text-zinc-400 ring-1 ring-zinc-700/80 hover:bg-zinc-800 hover:text-zinc-200'
+    }`;
+
   return (
-    <div className="space-y-4 mb-8">
+    <div className="mb-10 space-y-6">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
         <input
-          type="text"
-          placeholder="Search events..."
+          type="search"
+          placeholder="Search by title, description, or place…"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-gray-800 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+          className="w-full rounded-2xl border border-zinc-700/60 bg-zinc-900/60 py-3.5 pl-12 pr-4 text-sm text-white shadow-inner shadow-black/20 placeholder:text-zinc-500 focus:border-indigo-500/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/25"
+          autoComplete="off"
         />
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-2">
-        <button
-          onClick={() => setSelectedCategory('all')}
-          className={`px-4 py-2 rounded-lg whitespace-nowrap ${
-            selectedCategory === 'all' ? 'bg-indigo-600' : 'bg-gray-800'
-          }`}
-        >
-          All Events
+      <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:thin]">
+        <button type="button" onClick={() => setSelectedCategory('all')} className={pill(selectedCategory === 'all')}>
+          All
         </button>
         {categories.map((category) => (
           <button
             key={category}
+            type="button"
             onClick={() => setSelectedCategory(category)}
-            className={`px-4 py-2 rounded-lg whitespace-nowrap ${
-              selectedCategory === category ? 'bg-indigo-600' : 'bg-gray-800'
-            }`}
+            className={pill(selectedCategory === category)}
           >
             {category}
           </button>
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="relative">
+      <div className="flex flex-col gap-4 rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-4 ring-1 ring-white/[0.03] sm:flex-row sm:items-center sm:justify-between">
+        <div ref={menuRef} className="relative">
           <button
+            type="button"
             onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-            className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/60 bg-zinc-800/50 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-800"
           >
-            <Filter size={20} />
-            Filter & Sort
-            <ChevronDown size={16} className={`transform transition-transform ${filterMenuOpen ? 'rotate-180' : ''}`} />
+            <SlidersHorizontal className="h-4 w-4 text-indigo-400" />
+            Sort & filters
+            <ChevronDown className={`h-4 w-4 text-zinc-500 transition ${filterMenuOpen ? 'rotate-180' : ''}`} />
           </button>
           {filterMenuOpen && (
-            <div className="absolute mt-2 w-48 bg-gray-800 rounded-lg shadow-lg z-10">
-              <div className="p-4 space-y-2">
-                <h3 className="font-semibold mb-2">Sort by</h3>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    checked={sortBy === 'date'}
-                    onChange={() => setSortBy('date')}
-                    className="form-radio text-indigo-600"
-                  />
-                  <span>Date</span>
-                </label>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    checked={sortBy === 'name'}
-                    onChange={() => setSortBy('name')}
-                    className="form-radio text-indigo-600"
-                  />
-                  <span>Name</span>
-                </label>
-              </div>
+            <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-xl border border-zinc-700 bg-zinc-900 py-3 shadow-2xl shadow-black/50 ring-1 ring-white/5">
+              <p className="px-4 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Sort by</p>
+              <label className="flex cursor-pointer items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800/80">
+                <input
+                  type="radio"
+                  name="sortBy"
+                  checked={sortBy === 'date'}
+                  onChange={() => setSortBy('date')}
+                  className="h-4 w-4 border-zinc-600 text-indigo-600 focus:ring-indigo-500"
+                />
+                Date
+              </label>
+              <label className="flex cursor-pointer items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800/80">
+                <input
+                  type="radio"
+                  name="sortBy"
+                  checked={sortBy === 'name'}
+                  onChange={() => setSortBy('name')}
+                  className="h-4 w-4 border-zinc-600 text-indigo-600 focus:ring-indigo-500"
+                />
+                Name
+              </label>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Calendar size={18} className="text-gray-400" />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="bg-gray-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-            placeholder="From"
-          />
-          <span className="text-gray-500">to</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="bg-gray-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-            placeholder="To"
-          />
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <Calendar className="h-4 w-4 text-indigo-400" />
+            Date range
+          </span>
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inputCls} />
+          <span className="text-zinc-600">—</span>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inputCls} />
           {(dateFrom || dateTo) && (
             <button
-              onClick={() => { setDateFrom(''); setDateTo(''); }}
-              className="text-xs text-gray-400 hover:text-white ml-1"
+              type="button"
+              onClick={() => {
+                setDateFrom('');
+                setDateTo('');
+              }}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
             >
-              Clear
+              <X className="h-3.5 w-3.5" />
+              Clear dates
             </button>
           )}
         </div>
