@@ -41,21 +41,19 @@ export default function EventCard({ event, index = 0 }) {
             {event.participantCount ?? 0}
           </span>
         </div>
-      </Link>
-
-      <div className="flex flex-1 flex-col p-5">
-        <h3 className="line-clamp-2 text-lg font-semibold leading-snug tracking-tight text-white">
-          <Link to={`/event/${event._id}`} className="transition hover:text-indigo-200">
-            {event.name}
-          </Link>
-        </h3>
-        <p className="mt-2 text-xs font-medium text-indigo-300/90">
-          <span className="text-zinc-500">Host · </span>
-          {event.eventCreatorLabel}
-        </p>
-        <div className="mt-3 flex gap-2 text-sm text-zinc-400">
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400/80" aria-hidden />
-          <p className="line-clamp-2 leading-relaxed">{event.venue}</p>
+        <h3 className="text-xl font-semibold mb-2">{event.name}</h3>
+        <p className="text-sm text-indigo-300 mb-2">Event Creator: {event.eventCreatorLabel}</p>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2 text-gray-400 text-sm">
+            <MapPin size={16} />
+            {event.venue}
+          </div>
+          {event.distanceKm != null && (
+            <span className="flex items-center gap-1 text-xs bg-indigo-900/60 text-indigo-300 px-2 py-1 rounded-full whitespace-nowrap">
+              <MapPin size={10} />
+              {event.distanceKm} km
+            </span>
+          )}
         </div>
         <p className="mt-3 line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-500">{event.description}</p>
         <Link

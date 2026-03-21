@@ -1,8 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import { Search, SlidersHorizontal, ChevronDown, Calendar, X } from 'lucide-react';
+import React from 'react';
+import { Search, Filter, ChevronDown, Calendar, MapPin, Navigation } from 'lucide-react';
 
-const inputCls =
-  'rounded-xl border border-zinc-600/60 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 [color-scheme:dark]';
+const RADIUS_OPTIONS = [10, 25, 50, 100];
 
 export default function EventFilters({
   categories,
@@ -18,6 +17,11 @@ export default function EventFilters({
   setDateFrom,
   dateTo,
   setDateTo,
+  nearMe,
+  setNearMe,
+  radius,
+  setRadius,
+  userAddress,
 }) {
   const menuRef = useRef(null);
 
@@ -67,52 +71,67 @@ export default function EventFilters({
         ))}
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-4 ring-1 ring-white/[0.03] sm:flex-row sm:items-center sm:justify-between">
-        <div ref={menuRef} className="relative">
+      <div className="flex flex-wrap items-center gap-4">
+        {/* Filter & Sort dropdown — disabled when Near Me is active since geo sort takes over */}
+        <div className="relative">
           <button
-            type="button"
-            onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-            className="inline-flex items-center gap-2 rounded-xl border border-zinc-600/60 bg-zinc-800/50 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 hover:bg-zinc-800"
+            onClick={() => !nearMe && setFilterMenuOpen(!filterMenuOpen)}
+            disabled={nearMe}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              nearMe
+                ? 'bg-gray-800 opacity-40 cursor-not-allowed'
+                : 'bg-gray-800 hover:bg-gray-700'
+            }`}
           >
             <SlidersHorizontal className="h-4 w-4 text-indigo-400" />
             Sort & filters
             <ChevronDown className={`h-4 w-4 text-zinc-500 transition ${filterMenuOpen ? 'rotate-180' : ''}`} />
           </button>
-          {filterMenuOpen && (
-            <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-xl border border-zinc-700 bg-zinc-900 py-3 shadow-2xl shadow-black/50 ring-1 ring-white/5">
-              <p className="px-4 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Sort by</p>
-              <label className="flex cursor-pointer items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800/80">
-                <input
-                  type="radio"
-                  name="sortBy"
-                  checked={sortBy === 'date'}
-                  onChange={() => setSortBy('date')}
-                  className="h-4 w-4 border-zinc-600 text-indigo-600 focus:ring-indigo-500"
-                />
-                Date
-              </label>
-              <label className="flex cursor-pointer items-center gap-3 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800/80">
-                <input
-                  type="radio"
-                  name="sortBy"
-                  checked={sortBy === 'name'}
-                  onChange={() => setSortBy('name')}
-                  className="h-4 w-4 border-zinc-600 text-indigo-600 focus:ring-indigo-500"
-                />
-                Name
-              </label>
+          {filterMenuOpen && !nearMe && (
+            <div className="absolute mt-2 w-48 bg-gray-800 rounded-lg shadow-lg z-10">
+              <div className="p-4 space-y-2">
+                <h3 className="font-semibold mb-2">Sort by</h3>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={sortBy === 'date'}
+                    onChange={() => setSortBy('date')}
+                    className="form-radio text-indigo-600"
+                  />
+                  <span>Date</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={sortBy === 'name'}
+                    onChange={() => setSortBy('name')}
+                    className="form-radio text-indigo-600"
+                  />
+                  <span>Name</span>
+                </label>
+              </div>
             </div>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-            <Calendar className="h-4 w-4 text-indigo-400" />
-            Date range
-          </span>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={inputCls} />
-          <span className="text-zinc-600">—</span>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={inputCls} />
+        {/* Date range */}
+        <div className="flex items-center gap-2">
+          <Calendar size={18} className="text-gray-400" />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="bg-gray-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+            placeholder="From"
+          />
+          <span className="text-gray-500">to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="bg-gray-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+            placeholder="To"
+          />
           {(dateFrom || dateTo) && (
             <button
               type="button"
@@ -127,6 +146,50 @@ export default function EventFilters({
             </button>
           )}
         </div>
+
+        {/* Near Me — only rendered when the user has a saved address with geocode */}
+        {userAddress && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setNearMe(!nearMe)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                nearMe
+                  ? 'bg-indigo-600 hover:bg-indigo-700'
+                  : 'bg-gray-800 hover:bg-gray-700'
+              }`}
+            >
+              <Navigation size={16} className={nearMe ? 'text-white' : 'text-gray-400'} />
+              Near Me
+            </button>
+
+            {/* Radius selector — only visible when Near Me is on */}
+            {nearMe && (
+              <div className="flex items-center gap-1">
+                {RADIUS_OPTIONS.map((km) => (
+                  <button
+                    key={km}
+                    onClick={() => setRadius(km)}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                      radius === km
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {km}km
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Show which address is being used */}
+            {nearMe && (
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                <MapPin size={12} />
+                {userAddress.label || userAddress.city}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
