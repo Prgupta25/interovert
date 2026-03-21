@@ -27,3 +27,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Google Dialogflow service account key (local only)
+backend/dialogflow-sa.json
+dialogflow-sa.json

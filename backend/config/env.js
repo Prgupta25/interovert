@@ -14,14 +14,10 @@ const env = {
   get resendApiKey() { return globalThis.process.env.RESEND_API_KEY || ''; },
   get emailFrom() { return globalThis.process.env.EMAIL_FROM || globalThis.process.env.EMAIL_USER || 'Introvert <onboarding@resend.dev>'; },
   get geminiApiKey() { return globalThis.process.env.GEMINI_API_KEY || ''; },
-  get askyApiKey() { return globalThis.process.env.ASKY_API_KEY || ''; },
-  get askyBaseUrl() { return globalThis.process.env.ASKY_BASE_URL || 'https://api.asky.ai/v1'; },
-  get askyChatEndpoint() { return globalThis.process.env.ASKY_CHAT_ENDPOINT || ''; },
-  get askyAuthToken() { return globalThis.process.env.ASKY_AUTH_TOKEN || ''; },
-  get askyModel() { return globalThis.process.env.ASKY_MODEL || 'asky-chat'; },
-  get askyModelVersion() { return globalThis.process.env.ASKY_MODEL_VERSION || ''; },
-  get askyTemporaryChat() { return globalThis.process.env.ASKY_TEMPORARY_CHAT === 'true'; },
   get openAiApiKey() { return globalThis.process.env.OPENAI_API_KEY || ''; },
+  /** Google Dialogflow ES (service account: GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_SERVICE_ACCOUNT_JSON) */
+  get dialogflowProjectId() { return globalThis.process.env.DIALOGFLOW_PROJECT_ID || ''; },
+  get dialogflowLanguageCode() { return globalThis.process.env.DIALOGFLOW_LANGUAGE_CODE || 'en'; },
   get frontendUrl() { return globalThis.process.env.FRONTEND_URL || ''; },
   /** Use for links in emails (reset password, etc.). Prefer HTTPS / LAN / tunnel — not localhost for real users. */
   get publicAppUrl() { return globalThis.process.env.PUBLIC_APP_URL || ''; },

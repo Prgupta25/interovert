@@ -19,6 +19,7 @@ import communityRoutes from './routes/community.js';
 import { getPgPool, hasPostgresConfig } from './config/pg.js';
 import { registerCommunitySocketHandlers } from './services/communitySocket.js';
 import { ensureIndex as ensureElasticIndex } from './services/elasticService.js';
+import { detectIntentText, isDialogflowConfigured } from './services/dialogflowChat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -114,49 +115,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/community', communityRoutes);
 
-function extractAskyText(payload) {
-  const seen = new Set();
-  const pick = (value, depth = 0) => {
-    if (value == null || depth > 4) return '';
-    if (typeof value === 'string') {
-      const text = value.trim();
-      if (!text) return '';
-      // Avoid returning obvious metadata-only values.
-      if (/^[A-Za-z0-9_-]{24,}$/.test(text) && !/\s/.test(text)) return '';
-      return text;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') return '';
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const found = pick(item, depth + 1);
-        if (found) return found;
-      }
-      return '';
-    }
-    if (typeof value === 'object') {
-      if (seen.has(value)) return '';
-      seen.add(value);
-
-      const priorityKeys = ['content', 'response', 'answer', 'text', 'message', 'output', 'result'];
-      for (const key of priorityKeys) {
-        if (Object.hasOwn(value, key)) {
-          const found = pick(value[key], depth + 1);
-          if (found) return found;
-        }
-      }
-
-      for (const key of Object.keys(value)) {
-        const found = pick(value[key], depth + 1);
-        if (found) return found;
-      }
-    }
-    return '';
-  };
-
-  return pick(payload);
-}
-
-// Ask AI chat - Asky -> Gemini -> OpenAI fallback
+// AI chat: Dialogflow (if configured) -> Gemini -> OpenAI
 app.post('/api/chat', async (req, res) => {
   const sendJson = (status, body) => {
     if (!res.headersSent) res.status(status).json(body);
@@ -173,84 +132,29 @@ app.post('/api/chat', async (req, res) => {
       content: m.content,
     }));
 
-    const askyKey = env.askyApiKey;
-    const askyAuthToken = env.askyAuthToken;
-    if (askyKey || askyAuthToken) {
-      const endpoint = env.askyChatEndpoint
-        || `${env.askyBaseUrl.replace(/\/$/, '')}/chat/completions`;
-      const isAskyChatWebEndpoint = /askaichat\.app\/api\/chat\/message\/send/i.test(endpoint);
-      const lastUserMessage = [...openaiMessages].reverse().find((m) => m.role === 'user')?.content || '';
+    const lastUserMessage = [...openaiMessages].reverse().find((m) => m.role === 'user')?.content?.trim() || '';
 
-      if (isAskyChatWebEndpoint && !askyAuthToken) {
-        if (!env.geminiApiKey && !env.openAiApiKey) {
-          return sendJson(502, { message: 'ASKY_AUTH_TOKEN is required for askaichat.app endpoint' });
-        }
-      }
-
-      const authHeaderValue = askyAuthToken || `Bearer ${askyKey}`;
+    const dfProject = env.dialogflowProjectId.trim();
+    if (lastUserMessage && dfProject && isDialogflowConfigured(dfProject)) {
+      const rawSession = typeof req.body?.sessionId === 'string' && req.body.sessionId.trim()
+        ? req.body.sessionId.trim()
+        : 'web-anon';
+      const sessionId = rawSession.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 120) || 'web-session';
       try {
-        const requestBody = isAskyChatWebEndpoint
-          ? {
-              message: lastUserMessage,
-              model: env.askyModel || 'gpt-5-nano',
-              temporaryChat: env.askyTemporaryChat,
-              ...(env.askyModelVersion ? { modelVersion: env.askyModelVersion } : {}),
-            }
-          : {
-              model: env.askyModel,
-              messages: openaiMessages,
-            };
-
-        const askyResponse = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json, text/plain, */*',
-            authorization: authHeaderValue,
-            ...(isAskyChatWebEndpoint
-              ? {
-                  origin: 'https://askaichat.app',
-                  referer: 'https://askaichat.app/chat',
-                  'user-agent': 'Mozilla/5.0',
-                }
-              : {}),
-          },
-          body: JSON.stringify(requestBody),
+        const dfText = await detectIntentText({
+          projectId: dfProject,
+          sessionId,
+          text: lastUserMessage,
+          languageCode: env.dialogflowLanguageCode,
         });
-
-        const askyRaw = await askyResponse.text();
-        let askyData = {};
-        try {
-          askyData = askyRaw ? JSON.parse(askyRaw) : {};
-        } catch {
-          askyData = { raw: askyRaw };
+        if (dfText) {
+          return sendJson(200, { content: dfText });
         }
-
-        if (askyResponse.ok) {
-          const content = extractAskyText(askyData);
-          if (content) {
-            return sendJson(200, { content });
-          }
-
-          if (!env.geminiApiKey && !env.openAiApiKey) {
-            return sendJson(502, {
-              message: `Asky returned empty response (status ${askyResponse.status}). Check ASKY_AUTH_TOKEN and endpoint format.`,
-              askyPreview: askyRaw.slice(0, 300),
-            });
-          }
-        }
-
-        const askyMessage = askyData?.error?.message
-          || askyData?.message
-          || askyResponse.statusText
-          || 'Asky request failed';
-
-        if (!env.geminiApiKey && !env.openAiApiKey) {
-          return sendJson(502, { message: `Asky request failed: ${askyMessage}` });
-        }
-      } catch (askyError) {
-        if (!env.geminiApiKey && !env.openAiApiKey) {
-          return sendJson(502, { message: `Asky network error: ${askyError.message}` });
+      } catch (dfErr) {
+        console.error('Dialogflow error:', dfErr?.message || dfErr);
+        const hasFallback = Boolean(env.geminiApiKey || env.openAiApiKey);
+        if (!hasFallback) {
+          return sendJson(502, { message: `Dialogflow: ${dfErr?.message || 'request failed'}` });
         }
       }
     }
@@ -318,7 +222,8 @@ app.post('/api/chat', async (req, res) => {
     const apiKey = env.openAiApiKey;
     if (!apiKey) {
       return sendJson(500, {
-        message: 'No chat API key configured. Add ASKY_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY to backend .env',
+        message:
+          'No chat API configured. Add DIALOGFLOW_PROJECT_ID + Google service account credentials, and/or GEMINI_API_KEY or OPENAI_API_KEY in backend .env',
       });
     }
 

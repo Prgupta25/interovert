@@ -12,6 +12,11 @@ function ChatBot({ onClose }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const chatContainerRef = useRef(null);
+  const dialogflowSessionIdRef = useRef(
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `df-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+  );
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -36,6 +41,7 @@ function ChatBot({ onClose }) {
     try {
       const { data } = await apiClient.post('/api/chat', {
         messages: payloadMessages,
+        sessionId: dialogflowSessionIdRef.current,
       });
 
       setMessages((prev) => [...prev, { role: 'assistant', content: data.content ?? '' }]);
