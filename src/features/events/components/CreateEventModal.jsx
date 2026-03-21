@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, ChevronDown } from 'lucide-react';
+import {
+  X,
+  MapPin,
+  ChevronDown,
+  Sparkles,
+  ImagePlus,
+  Calendar,
+  Tag,
+  Users,
+  AlignLeft,
+  PartyPopper,
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import apiClient from '../../../services/apiClient';
 import { getAuthToken } from '../../../utils/session';
@@ -16,7 +27,32 @@ const EMPTY_ADDRESS = {
   addressPostalCode: '',
 };
 
+const inputBase =
+  'w-full rounded-xl border border-zinc-700/80 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 shadow-inner shadow-black/20 transition-[border-color,box-shadow] focus:border-violet-500/60 focus:outline-none focus:ring-2 focus:ring-violet-500/25';
+
+const labelBase =
+  'mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500';
+
+const sectionTitle =
+  'flex items-center gap-2 text-sm font-semibold text-zinc-100';
+
+function FormSection({ icon: Icon, title, hint, children }) {
+  return (
+    <section className="space-y-4">
+      <div>
+        <h3 className={sectionTitle}>
+          {Icon && <Icon className="h-4 w-4 text-violet-400" strokeWidth={2} />}
+          {title}
+        </h3>
+        {hint ? <p className="mt-1 text-xs text-zinc-500">{hint}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export default function CreateEventModal({ isOpen, onClose, onCreated, categories }) {
+  const fileInputRef = useRef(null);
   const [eventData, setEventData] = useState({
     photo: '',
     name: '',
@@ -30,13 +66,11 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
   });
   const [otherCategory, setOtherCategory] = useState('');
 
-  // Address state
-  const [addressMode, setAddressMode] = useState('new'); // 'saved' | 'new'
+  const [addressMode, setAddressMode] = useState('new');
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
 
-  // Load user's saved addresses when modal opens
   useEffect(() => {
     if (!isOpen) return;
     const token = getAuthToken();
@@ -68,7 +102,6 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
       return;
     }
 
-    // Build address payload
     let addressPayload = {};
     if (addressMode === 'saved' && selectedAddressId) {
       addressPayload = { addressId: selectedAddressId };
@@ -98,12 +131,16 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onloadend = () => {
-      setEventData({ ...eventData, photo: reader.result });
+      setEventData((prev) => ({ ...prev, photo: reader.result }));
     };
     if (file) {
       reader.readAsDataURL(file);
     }
+    e.target.value = '';
   };
+
+  const scrollAreaClass =
+    'flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-6 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-violet-500/30 [&::-webkit-scrollbar-track]:bg-transparent';
 
   return (
     <AnimatePresence>
@@ -112,322 +149,481 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
         >
+          <button
+            type="button"
+            aria-label="Close modal"
+            className="absolute inset-0 bg-zinc-950/75 backdrop-blur-md"
+            onClick={onClose}
+          />
           <motion.div
-            initial={{ scale: 0.95 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.95 }}
-            className="bg-gray-900 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-event-title"
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+            className="relative z-10 flex max-h-[min(92vh,880px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-zinc-700/70 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black shadow-2xl shadow-violet-950/30 [color-scheme:dark]"
           >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Create New Event</h2>
-              <button onClick={onClose} className="text-gray-400 hover:text-white">
-                <X />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Photo */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">Event Photo</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                />
-              </div>
-
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">Event Name</label>
-                <input
-                  type="text"
-                  required
-                  onChange={(e) => setEventData({ ...eventData, name: e.target.value })}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">Description</label>
-                <textarea
-                  required
-                  onChange={(e) => setEventData({ ...eventData, description: e.target.value })}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white h-24"
-                />
-              </div>
-
-              {/* ── Address Section ── */}
-              <div className="bg-gray-800 rounded-xl p-4 space-y-4 border border-gray-700">
-                <div className="flex items-center gap-2 mb-1">
-                  <MapPin size={18} className="text-indigo-400" />
-                  <h3 className="text-white font-semibold">Event Address</h3>
+            {/* Header */}
+            <header className="shrink-0 border-b border-zinc-800/90 bg-zinc-900/40 px-6 py-5 backdrop-blur-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-300">
+                    <Sparkles className="h-3 w-3" />
+                    New event
+                  </div>
+                  <h2
+                    id="create-event-title"
+                    className="text-xl font-bold tracking-tight text-white sm:text-2xl"
+                  >
+                    Create New Event
+                  </h2>
+                  <p className="mt-1 max-w-md text-sm text-zinc-400">
+                    Share the essentials—photo, time, and place—so people know what they&apos;re joining.
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-xl border border-zinc-700/80 bg-zinc-800/50 p-2 text-zinc-400 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-white"
+                >
+                  <X className="h-5 w-5" strokeWidth={2} />
+                </button>
+              </div>
+            </header>
 
-                {/* Toggle: saved vs new */}
-                <div className="flex gap-2">
-                  {savedAddresses.length > 0 && (
+            <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+              <div className={scrollAreaClass}>
+                <div className="space-y-10 pb-2">
+                  {/* Cover image */}
+                  <FormSection
+                    icon={ImagePlus}
+                    title="Cover image"
+                    hint="A strong visual helps your event stand out in the feed."
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={handlePhotoUpload}
+                    />
                     <button
                       type="button"
-                      onClick={() => setAddressMode('saved')}
-                      className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
-                        addressMode === 'saved'
-                          ? 'bg-indigo-600 border-indigo-600 text-white'
-                          : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'
-                      }`}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="group relative flex w-full flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-violet-500/35 bg-gradient-to-br from-violet-950/40 via-zinc-900/60 to-zinc-950 px-6 py-10 text-center transition-all hover:border-violet-400/50 hover:from-violet-900/30 hover:shadow-[0_0_40px_-12px_rgba(139,92,246,0.45)]"
                     >
-                      Use Saved Address
+                      {eventData.photo ? (
+                        <>
+                          <img
+                            src={eventData.photo}
+                            alt="Event preview"
+                            className="absolute inset-0 h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-70"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                          <span className="relative z-10 flex items-center gap-2 rounded-full border border-white/20 bg-black/50 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm">
+                            <ImagePlus className="h-4 w-4" />
+                            Change image
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/15 ring-1 ring-violet-400/30">
+                            <ImagePlus className="h-7 w-7 text-violet-300" />
+                          </div>
+                          <p className="text-sm font-medium text-zinc-200">
+                            Click to upload or drag isn&apos;t available—tap to choose
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            PNG, JPG or WebP · recommended 16:9
+                          </p>
+                        </>
+                      )}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setAddressMode('new')}
-                    className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
-                      addressMode === 'new'
-                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                        : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'
-                    }`}
+                  </FormSection>
+
+                  {/* Basics */}
+                  <FormSection
+                    icon={AlignLeft}
+                    title="Basics"
+                    hint="Name and description appear on the event card and detail page."
                   >
-                    Enter New Address
-                  </button>
-                </div>
-
-                {/* Saved address dropdown */}
-                {addressMode === 'saved' && savedAddresses.length > 0 && (
-                  <div className="relative">
-                    <select
-                      value={selectedAddressId}
-                      onChange={(e) => setSelectedAddressId(e.target.value)}
-                      className="w-full bg-gray-700 rounded-lg p-2 text-white appearance-none pr-8 border border-gray-600"
-                    >
-                      {savedAddresses.map((addr) => (
-                        <option key={addr._id} value={addr._id}>
-                          {addr.label ? `${addr.label} — ` : ''}{addr.formattedAddress || addr.line1}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown size={16} className="absolute right-2 top-3 text-gray-400 pointer-events-none" />
-                    {/* Preview selected address */}
-                    {selectedAddressId && (() => {
-                      const sel = savedAddresses.find((a) => a._id === selectedAddressId);
-                      return sel?.geocode?.lat ? (
-                        <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                          <MapPin size={11} />
-                          {sel.geocode.lat.toFixed(5)}, {sel.geocode.lng.toFixed(5)}
-                        </p>
-                      ) : null;
-                    })()}
-                  </div>
-                )}
-
-                {/* New address fields */}
-                {addressMode === 'new' && (
-                  <div className="space-y-3">
-                    {/* Autocomplete search — fills fields below on pick */}
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Search &amp; autofill</label>
-                      <AddressAutocomplete
-                        placeholder="Type a venue or address to autofill…"
-                        onSelect={(fields) =>
-                          setNewAddress((prev) => ({
-                            ...prev,
-                            addressLine1:    fields.line1      || prev.addressLine1,
-                            addressCity:     fields.city       || prev.addressCity,
-                            addressState:    fields.state      || prev.addressState,
-                            addressCountry:  fields.country    || prev.addressCountry,
-                            addressPostalCode: fields.postalCode || prev.addressPostalCode,
-                          }))
+                      <label className={labelBase} htmlFor="ce-name">
+                        Event name
+                      </label>
+                      <input
+                        id="ce-name"
+                        type="text"
+                        required
+                        placeholder="e.g. Weekend board game night"
+                        onChange={(e) =>
+                          setEventData((prev) => ({ ...prev, name: e.target.value }))
                         }
-                        inputClassName="bg-gray-600 border-gray-500 focus:border-indigo-500 text-white placeholder-gray-400"
+                        className={inputBase}
                       />
-                      <p className="text-xs text-gray-500 mt-1">Pick a result to autofill, then edit below if needed.</p>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                          Label <span className="text-gray-500">(e.g. Venue)</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={newAddress.addressLabel}
-                          onChange={setAddr('addressLabel')}
-                          placeholder="Event Venue"
-                          className="w-full bg-gray-700 rounded-lg p-2 text-white text-sm border border-gray-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                          Postal Code
-                        </label>
-                        <input
-                          type="text"
-                          value={newAddress.addressPostalCode}
-                          onChange={setAddr('addressPostalCode')}
-                          placeholder="400001"
-                          className="w-full bg-gray-700 rounded-lg p-2 text-white text-sm border border-gray-600"
-                        />
-                      </div>
-                    </div>
-
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">
-                        Street Address <span className="text-red-400">*</span>
+                      <label className={labelBase} htmlFor="ce-desc">
+                        Description
                       </label>
-                      <input
-                        type="text"
-                        required={addressMode === 'new'}
-                        value={newAddress.addressLine1}
-                        onChange={setAddr('addressLine1')}
-                        placeholder="123 MG Road"
-                        className="w-full bg-gray-700 rounded-lg p-2 text-white text-sm border border-gray-600"
+                      <textarea
+                        id="ce-desc"
+                        required
+                        rows={4}
+                        placeholder="What is this about? Who should come?"
+                        onChange={(e) =>
+                          setEventData((prev) => ({ ...prev, description: e.target.value }))
+                        }
+                        className={`${inputBase} min-h-[6.5rem] resize-y`}
                       />
                     </div>
+                  </FormSection>
 
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">
-                        Floor / Landmark <span className="text-gray-500">(optional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newAddress.addressLine2}
-                        onChange={setAddr('addressLine2')}
-                        placeholder="Near City Mall"
-                        className="w-full bg-gray-700 rounded-lg p-2 text-white text-sm border border-gray-600"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3">
+                  {/* Address */}
+                  <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900/35 p-5 ring-1 ring-white/[0.04] backdrop-blur-sm">
+                    <div className="mb-4 flex items-center gap-2">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-400 ring-1 ring-violet-500/25">
+                        <MapPin className="h-4 w-4" strokeWidth={2} />
+                      </span>
                       <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                          City <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required={addressMode === 'new'}
-                          value={newAddress.addressCity}
-                          onChange={setAddr('addressCity')}
-                          placeholder="Mumbai"
-                          className="w-full bg-gray-700 rounded-lg p-2 text-white text-sm border border-gray-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">State</label>
-                        <input
-                          type="text"
-                          value={newAddress.addressState}
-                          onChange={setAddr('addressState')}
-                          placeholder="Maharashtra"
-                          className="w-full bg-gray-700 rounded-lg p-2 text-white text-sm border border-gray-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Country</label>
-                        <input
-                          type="text"
-                          value={newAddress.addressCountry}
-                          onChange={setAddr('addressCountry')}
-                          placeholder="India"
-                          className="w-full bg-gray-700 rounded-lg p-2 text-white text-sm border border-gray-600"
-                        />
+                        <h3 className="text-sm font-semibold text-white">Location</h3>
+                        <p className="text-xs text-zinc-500">Where will people meet?</p>
                       </div>
                     </div>
 
-                    <p className="text-xs text-gray-500 flex items-center gap-1">
-                      <MapPin size={11} />
-                      Geocoordinates will be auto-detected from the address
-                    </p>
+                    <div className="mb-4 flex gap-2 rounded-xl bg-zinc-950/60 p-1 ring-1 ring-zinc-800/80">
+                      {savedAddresses.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setAddressMode('saved')}
+                          className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all sm:text-sm ${
+                            addressMode === 'saved'
+                              ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-900/40'
+                              : 'text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          Saved address
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setAddressMode('new')}
+                        className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all sm:text-sm ${
+                          addressMode === 'new'
+                            ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-900/40'
+                            : 'text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        New address
+                      </button>
+                    </div>
+
+                    {addressMode === 'saved' && savedAddresses.length > 0 && (
+                      <div className="relative">
+                        <label className={labelBase}>Pick address</label>
+                        <select
+                          value={selectedAddressId}
+                          onChange={(e) => setSelectedAddressId(e.target.value)}
+                          className={`${inputBase} cursor-pointer appearance-none pr-10`}
+                        >
+                          {savedAddresses.map((addr) => (
+                            <option key={addr._id} value={addr._id}>
+                              {addr.label ? `${addr.label} — ` : ''}
+                              {addr.formattedAddress || addr.line1}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          size={18}
+                          className="pointer-events-none absolute right-3 top-[2.125rem] text-zinc-500"
+                        />
+                        {selectedAddressId &&
+                          (() => {
+                            const sel = savedAddresses.find((a) => a._id === selectedAddressId);
+                            return sel?.geocode?.lat ? (
+                              <p className="mt-1.5 flex items-center gap-1 text-xs text-zinc-500">
+                                <MapPin size={11} className="text-violet-400/80" />
+                                {sel.geocode.lat.toFixed(5)}, {sel.geocode.lng.toFixed(5)}
+                              </p>
+                            ) : null;
+                          })()}
+                      </div>
+                    )}
+
+                    {addressMode === 'new' && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className={labelBase}>Search &amp; autofill</label>
+                          <AddressAutocomplete
+                            placeholder="Type a venue or address…"
+                            onSelect={(fields) =>
+                              setNewAddress((prev) => ({
+                                ...prev,
+                                addressLine1: fields.line1 || prev.addressLine1,
+                                addressCity: fields.city || prev.addressCity,
+                                addressState: fields.state || prev.addressState,
+                                addressCountry: fields.country || prev.addressCountry,
+                                addressPostalCode: fields.postalCode || prev.addressPostalCode,
+                              }))
+                            }
+                            inputClassName="border-zinc-600/90 bg-zinc-900/80 text-zinc-100 placeholder-zinc-500 focus:border-violet-500/70"
+                          />
+                          <p className="mt-1.5 text-xs text-zinc-500">
+                            Choose a suggestion to fill fields—you can still edit everything below.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className={labelBase}>
+                              Label <span className="font-normal normal-case text-zinc-600">(e.g. venue)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={newAddress.addressLabel}
+                              onChange={setAddr('addressLabel')}
+                              placeholder="Event venue"
+                              className={inputBase}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelBase}>Postal code</label>
+                            <input
+                              type="text"
+                              value={newAddress.addressPostalCode}
+                              onChange={setAddr('addressPostalCode')}
+                              placeholder="400001"
+                              className={inputBase}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className={labelBase}>
+                            Street address <span className="text-rose-400/90">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required={addressMode === 'new'}
+                            value={newAddress.addressLine1}
+                            onChange={setAddr('addressLine1')}
+                            placeholder="123 MG Road"
+                            className={inputBase}
+                          />
+                        </div>
+
+                        <div>
+                          <label className={labelBase}>
+                            Floor / landmark{' '}
+                            <span className="font-normal normal-case text-zinc-600">(optional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={newAddress.addressLine2}
+                            onChange={setAddr('addressLine2')}
+                            placeholder="Near City Mall"
+                            className={inputBase}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                          <div className="sm:col-span-1">
+                            <label className={labelBase}>
+                              City <span className="text-rose-400/90">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              required={addressMode === 'new'}
+                              value={newAddress.addressCity}
+                              onChange={setAddr('addressCity')}
+                              placeholder="Mumbai"
+                              className={inputBase}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelBase}>State</label>
+                            <input
+                              type="text"
+                              value={newAddress.addressState}
+                              onChange={setAddr('addressState')}
+                              placeholder="Maharashtra"
+                              className={inputBase}
+                            />
+                          </div>
+                          <div>
+                            <label className={labelBase}>Country</label>
+                            <input
+                              type="text"
+                              value={newAddress.addressCountry}
+                              onChange={setAddr('addressCountry')}
+                              placeholder="India"
+                              className={inputBase}
+                            />
+                          </div>
+                        </div>
+
+                        <p className="flex items-center gap-1.5 text-xs text-zinc-500">
+                          <MapPin size={12} className="shrink-0 text-violet-400/70" />
+                          Coordinates are detected automatically from this address.
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Date & Time */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">Date & Time</label>
-                <input
-                  type="datetime-local"
-                  required
-                  onChange={(e) => setEventData({ ...eventData, datetime: e.target.value })}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                />
-              </div>
+                  {/* Schedule & category */}
+                  <FormSection
+                    icon={Calendar}
+                    title="When & category"
+                    hint="Attendees use this to plan their calendar."
+                  >
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className={labelBase} htmlFor="ce-dt">
+                          Date & time
+                        </label>
+                        <input
+                          id="ce-dt"
+                          type="datetime-local"
+                          required
+                          onChange={(e) =>
+                            setEventData((prev) => ({ ...prev, datetime: e.target.value }))
+                          }
+                          className={inputBase}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelBase} htmlFor="ce-cat">
+                          Category
+                        </label>
+                        <div className="relative">
+                          <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-400/80" />
+                          <select
+                            id="ce-cat"
+                            required
+                            onChange={(e) =>
+                              setEventData((prev) => ({ ...prev, category: e.target.value }))
+                            }
+                            className={`${inputBase} cursor-pointer appearance-none pl-10 pr-10`}
+                          >
+                            <option value="">Select category</option>
+                            {categories.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown
+                            size={18}
+                            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    {eventData.category === 'Other' && (
+                      <div>
+                        <label className={labelBase} htmlFor="ce-other">
+                          Specify category
+                        </label>
+                        <input
+                          id="ce-other"
+                          type="text"
+                          required
+                          placeholder="Your custom category"
+                          onChange={(e) => setOtherCategory(e.target.value)}
+                          className={inputBase}
+                        />
+                      </div>
+                    )}
+                  </FormSection>
 
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">Category</label>
-                <select
-                  required
-                  onChange={(e) => setEventData({ ...eventData, category: e.target.value })}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                >
-                  <option value="">Select a category</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-              {eventData.category === 'Other' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Specify Other Category</label>
-                  <input
-                    type="text"
-                    required
-                    onChange={(e) => setOtherCategory(e.target.value)}
-                    className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                  />
+                  {/* Experience */}
+                  <FormSection
+                    icon={PartyPopper}
+                    title="The experience"
+                    hint="Help people imagine the vibe and what they'll do together."
+                  >
+                    <div>
+                      <label className={labelBase} htmlFor="ce-act">
+                        What will we do?
+                      </label>
+                      <textarea
+                        id="ce-act"
+                        required
+                        rows={3}
+                        placeholder="Games, walk, workshop…"
+                        onChange={(e) =>
+                          setEventData((prev) => ({ ...prev, activities: e.target.value }))
+                        }
+                        className={`${inputBase} resize-y`}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelBase} htmlFor="ce-max">
+                        Maximum attendees
+                      </label>
+                      <div className="relative">
+                        <Users className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-400/80" />
+                        <input
+                          id="ce-max"
+                          type="number"
+                          required
+                          min={1}
+                          placeholder="20"
+                          onChange={(e) =>
+                            setEventData((prev) => ({ ...prev, maxAttendees: e.target.value }))
+                          }
+                          className={`${inputBase} pl-10`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelBase} htmlFor="ce-about">
+                        Something fun about you
+                      </label>
+                      <textarea
+                        id="ce-about"
+                        required
+                        rows={3}
+                        placeholder="Host intro—keeps things human"
+                        onChange={(e) =>
+                          setEventData((prev) => ({ ...prev, aboutYou: e.target.value }))
+                        }
+                        className={`${inputBase} resize-y`}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelBase} htmlFor="ce-exp">
+                        What to expect?
+                      </label>
+                      <textarea
+                        id="ce-exp"
+                        required
+                        rows={3}
+                        placeholder="Duration, cost, accessibility, what to bring…"
+                        onChange={(e) =>
+                          setEventData((prev) => ({ ...prev, expectations: e.target.value }))
+                        }
+                        className={`${inputBase} resize-y`}
+                      />
+                    </div>
+                  </FormSection>
                 </div>
-              )}
-
-              {/* Activities */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">What will we do?</label>
-                <textarea
-                  required
-                  onChange={(e) => setEventData({ ...eventData, activities: e.target.value })}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white h-24"
-                />
               </div>
 
-              {/* Max Attendees */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">Maximum Attendees</label>
-                <input
-                  type="number"
-                  required
-                  onChange={(e) => setEventData({ ...eventData, maxAttendees: e.target.value })}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                />
-              </div>
-
-              {/* About You */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">Something crazy about you</label>
-                <textarea
-                  required
-                  onChange={(e) => setEventData({ ...eventData, aboutYou: e.target.value })}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                />
-              </div>
-
-              {/* Expectations */}
-              <div>
-                <label className="block text-sm font-medium text-gray-200 mb-2">What to expect?</label>
-                <textarea
-                  required
-                  onChange={(e) => setEventData({ ...eventData, expectations: e.target.value })}
-                  className="w-full bg-gray-800 rounded-lg p-2 text-white"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-indigo-600 text-white rounded-lg py-2 px-4 hover:bg-indigo-700 transition-colors"
-              >
-                Create Event
-              </button>
+              {/* Footer CTA */}
+              <footer className="shrink-0 border-t border-zinc-800/90 bg-zinc-950/90 px-6 py-4 backdrop-blur-md">
+                <button
+                  type="submit"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-violet-500 to-fuchsia-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-violet-950/40 transition-[transform,box-shadow] hover:from-violet-500 hover:via-violet-500 hover:to-fuchsia-500 hover:shadow-violet-900/50 active:scale-[0.99]"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Publish event
+                </button>
+              </footer>
             </form>
           </motion.div>
         </motion.div>
