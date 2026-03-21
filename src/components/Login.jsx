@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff, LogIn, User, Lock, Phone } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import d1 from "../assets/images/b3.jpg"
 import { toast } from 'react-hot-toast'
 import OTPVerification from './OTPVerification'
@@ -12,6 +12,7 @@ import AuthShell from '../features/auth/AuthShell'
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
@@ -22,6 +23,11 @@ export default function Login() {
   const [showOTP, setShowOTP] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!location.state?.from) return
+    toast('Please sign in to continue.', { id: 'auth-required-redirect', icon: '🔐' })
+  }, [location.state?.from])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -55,7 +61,12 @@ export default function Login() {
   }
 
   const handleVerificationComplete = () => {
-    navigate('/')
+    const from = location.state?.from
+    if (from?.pathname) {
+      navigate(`${from.pathname}${from.search || ''}${from.hash || ''}`, { replace: true })
+    } else {
+      navigate('/events', { replace: true })
+    }
   }
 
   return (

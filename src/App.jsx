@@ -14,6 +14,7 @@ import ResetPassword from './components/ResetPassword';
 import Profile from './components/Profile';
 import Chat from './components/Chat';
 import ChatBot from './components/Chatbot';
+import ProtectedRoute from './components/ProtectedRoute';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -24,10 +25,24 @@ function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
-            <Route path="/events" element={<Events />} />
+            <Route
+              path="/events"
+              element={
+                <ProtectedRoute>
+                  <Events />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/profile" element={<Profile />} />
-            
-          <Route path="/event/:id" element={<PerEvent />} />
+
+            <Route
+              path="/event/:id"
+              element={
+                <ProtectedRoute>
+                  <PerEvent />
+                </ProtectedRoute>
+              }
+            />
           <Route path="/chatbot" element={<ChatBot />} />
 
             

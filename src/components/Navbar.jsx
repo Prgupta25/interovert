@@ -92,6 +92,15 @@ function Navbar() {
 
 
             <div className="hidden md:flex items-center space-x-8">
+              <Link to="/events">
+                <motion.span
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="text-gray-700 hover:text-indigo-600 transition-colors"
+                >
+                  Events
+                </motion.span>
+              </Link>
               {['Features', 'Explore', 'Community', 'Blog'].map((item) => (
                 <motion.button
                   key={item}
@@ -162,6 +171,13 @@ function Navbar() {
             className="md:hidden bg-white border-t"
           >
             <div className="px-4 pt-2 pb-4 space-y-4">
+              <Link
+                to="/events"
+                onClick={() => setIsMenuOpen(false)}
+                className="block text-gray-700 hover:text-indigo-600 transition-colors"
+              >
+                Events
+              </Link>
               {['Features', 'Explore', 'Community', 'Blog'].map((item) => (
                 <button
                   key={item}
