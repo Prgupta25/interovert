@@ -17,8 +17,6 @@ export default function Events() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [sortBy, setSortBy] = useState('date')
   const [filterMenuOpen, setFilterMenuOpen] = useState(false)
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
   const [events, setEvents] = useState([])
 
   // Geo / Near Me state
@@ -69,8 +67,6 @@ export default function Events() {
       loadEvents({
         q: searchTerm,
         category: selectedCategory,
-        dateFrom,
-        dateTo,
         sortBy,
         ...(nearMe && userAddress?.geocode && {
           userLat: userAddress.geocode.lat,
@@ -79,7 +75,7 @@ export default function Events() {
         }),
       })
     }, 350)
-  }, [searchTerm, selectedCategory, dateFrom, dateTo, sortBy, nearMe, radius, userAddress, loadEvents])
+  }, [searchTerm, selectedCategory, sortBy, nearMe, radius, userAddress, loadEvents])
 
   useEffect(() => {
     debouncedLoad()
@@ -152,10 +148,6 @@ export default function Events() {
           setSortBy={setSortBy}
           filterMenuOpen={filterMenuOpen}
           setFilterMenuOpen={setFilterMenuOpen}
-          dateFrom={dateFrom}
-          setDateFrom={setDateFrom}
-          dateTo={dateTo}
-          setDateTo={setDateTo}
           nearMe={nearMe}
           setNearMe={setNearMe}
           radius={radius}
@@ -174,7 +166,7 @@ export default function Events() {
             </span>
             <h2 className="mt-6 text-lg font-semibold text-white">No events match your filters</h2>
             <p className="mt-2 max-w-sm text-sm text-zinc-500">
-              Try another category, widen your dates, or be the first to host something new.
+              Try another category or search term, or be the first to host something new.
             </p>
             <button
               type="button"
@@ -198,7 +190,7 @@ export default function Events() {
       <CreateEventModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onCreated={() => loadEvents({ q: searchTerm, category: selectedCategory, dateFrom, dateTo, sortBy })}
+        onCreated={() => loadEvents({ q: searchTerm, category: selectedCategory, sortBy })}
         categories={eventCategories}
       />
     </div>

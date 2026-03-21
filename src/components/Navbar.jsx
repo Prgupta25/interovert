@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useSpring, useAnimation } from 'framer-motion';
-import { Menu, X, MapPin, ChevronLeft, ChevronRight, Download, QrCode, Users, Compass, Coffee, Music, Book, Headphones, Camera, MessageSquareMore } from 'lucide-react';
+import { Menu, X, MapPin, ChevronLeft, ChevronRight, Download, QrCode, Users, Compass, Coffee, Music, Book, Headphones, Camera } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { getCurrentUser } from '../utils/session';
 
@@ -104,17 +104,6 @@ function Navbar() {
                   {item}
                 </motion.button>
               ))}
-              <Link to="/chatbot">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="flex items-center gap-2 px-4 py-2 text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full transition-colors hover:from-indigo-700 hover:to-purple-700"
-                >
-                  <MessageSquareMore size={18} />
-                  Ask AI
-                </motion.button>
-              </Link>
-              
               {email ? (
                 <Link to="/profile">
                   <motion.button
@@ -183,12 +172,6 @@ function Navbar() {
                   {item}
                 </button>
               ))}
-              <Link to="/chatbot">
-                <button className="w-full flex items-center justify-center gap-2 px-4 py-2 text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full transition-colors hover:from-indigo-700 hover:to-purple-700 mb-2">
-                  <MessageSquareMore size={18} />
-                  Ask AI
-                </button>
-              </Link>
               {
                 email ? (
                   <Link to="/profile">

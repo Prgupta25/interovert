@@ -1,9 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import {
   Search,
-  Filter,
   ChevronDown,
-  Calendar,
   MapPin,
   Navigation,
   SlidersHorizontal,
@@ -21,10 +19,6 @@ export default function EventFilters({
   setSortBy,
   filterMenuOpen,
   setFilterMenuOpen,
-  dateFrom,
-  setDateFrom,
-  dateTo,
-  setDateTo,
   nearMe,
   setNearMe,
   radius,
@@ -119,39 +113,6 @@ export default function EventFilters({
                 </label>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Date range */}
-        <div className="flex items-center gap-2">
-          <Calendar size={18} className="text-gray-400" />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="bg-gray-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-            placeholder="From"
-          />
-          <span className="text-gray-500">to</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="bg-gray-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
-            placeholder="To"
-          />
-          {(dateFrom || dateTo) && (
-            <button
-              type="button"
-              onClick={() => {
-                setDateFrom('');
-                setDateTo('');
-              }}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
-            >
-              <X className="h-3.5 w-3.5" />
-              Clear dates
-            </button>
           )}
         </div>
 

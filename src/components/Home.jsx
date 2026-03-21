@@ -3,7 +3,6 @@ import { motion, useAnimation } from 'framer-motion';
 import {
   MapPin,
   Download,
-  MessageCircle,
   QrCode,
   Users,
   Compass,
@@ -15,7 +14,6 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import Chatbot from './Chatbot';
 import a2 from '../assets/images/a2.jpg';
 import a4 from '../assets/images/a4.jpg';
 import a5 from '../assets/images/a5.jpg';
@@ -141,7 +139,6 @@ function SectionHeading({ eyebrow, title, subtitle, className = '' }) {
 export default function Home() {
   const location = useLocation();
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const controls = useAnimation();
   const floatingTextRef = useRef(null);
   const destinationsScrollRef = useRef(null);
@@ -588,29 +585,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* Chat FAB */}
-      <motion.button
-        type="button"
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-900/50 ring-2 ring-white/10"
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.94 }}
-        aria-label="Open chat assistant"
-        onClick={() => setIsChatbotOpen((o) => !o)}
-      >
-        <MessageCircle className="h-6 w-6" />
-      </motion.button>
-
-      {isChatbotOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 24 }}
-          className="fixed bottom-24 right-6 z-50 w-[min(100vw-2rem,400px)]"
-        >
-          <Chatbot onClose={() => setIsChatbotOpen(false)} />
-        </motion.div>
-      )}
     </div>
   );
 }
