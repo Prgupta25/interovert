@@ -31,6 +31,9 @@ const env = {
   get whatsappWebhookToken() { return globalThis.process.env.WHATSAPP_GROUP_WEBHOOK_TOKEN || ''; },
   get elasticUrl() { return globalThis.process.env.ELASTICSEARCH_URL || ''; },
   get elasticApiKey() { return globalThis.process.env.ELASTICSEARCH_API_KEY || ''; },
+  get cloudinaryCloudName() { return globalThis.process.env.CLOUDINARY_CLOUD_NAME || ''; },
+  get cloudinaryApiKey() { return globalThis.process.env.CLOUDINARY_API_KEY || ''; },
+  get cloudinaryApiSecret() { return globalThis.process.env.CLOUDINARY_API_SECRET || ''; },
 };
 
 export function validateStartupEnv() {

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import env from '../config/env.js';
 import { generateOtpCode, sendOtpEmail } from '../services/authService.js';
+import { uploadIfBase64, deleteImage as cloudinaryDelete } from '../services/cloudinaryService.js';
 
 export async function signup(req, res) {
   const { name, email, password, phoneNumber, whatsappNumber, birthdate } = req.body || {};
@@ -114,9 +115,18 @@ export async function updateProfile(req, res) {
   const payload = req.body || {};
   const incomingProfile = payload.profile || {};
 
+  let avatar = incomingProfile.avatar ?? req.user.profile?.avatar ?? null;
+  if (incomingProfile.avatar && incomingProfile.avatar.startsWith('data:')) {
+    const oldAvatar = req.user.profile?.avatar;
+    avatar = await uploadIfBase64(incomingProfile.avatar, 'interovert/avatars');
+    if (oldAvatar?.includes('cloudinary.com') && avatar !== oldAvatar) {
+      cloudinaryDelete(oldAvatar).catch(() => {});
+    }
+  }
+
   const updates = {
     profile: {
-      avatar: incomingProfile.avatar ?? req.user.profile?.avatar ?? null,
+      avatar,
       lookingFor: Array.isArray(incomingProfile.lookingFor) ? incomingProfile.lookingFor : req.user.profile?.lookingFor ?? [],
       interests: Array.isArray(incomingProfile.interests) ? incomingProfile.interests : req.user.profile?.interests ?? [],
       customInterests: Array.isArray(incomingProfile.customInterests) ? incomingProfile.customInterests : req.user.profile?.customInterests ?? [],

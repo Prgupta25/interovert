@@ -66,9 +66,6 @@ export function buildEventDoc(event, address) {
   const addr = address || event.address || {};
   const venue = addr.formattedAddress || [addr.line1, addr.city].filter(Boolean).join(', ');
 
-  const raw = event.photo || '';
-  const photo = raw.startsWith('data:') ? '' : raw;
-
   return {
     name:             event.name,
     description:      event.description,
@@ -80,7 +77,7 @@ export function buildEventDoc(event, address) {
     owner_id:         String(event.owner_id),
     datetime:         event.datetime,
     createdAt:        event.createdAt,
-    photo,
+    photo:            event.photo || '',
     maxAttendees:     event.maxAttendees,
     participantCount: event.participantCount || 0,
   };

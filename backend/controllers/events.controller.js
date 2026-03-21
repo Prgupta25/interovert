@@ -13,6 +13,7 @@ import {
   triggerWhatsappGroupCreation,
 } from '../services/whatsappService.js';
 import { geocodeAddress, buildFormattedAddress } from '../services/geocodeService.js';
+import { uploadIfBase64, deleteImage as cloudinaryDelete } from '../services/cloudinaryService.js';
 import {
   searchEvents as esSearch,
   indexEvent as esIndex,
@@ -206,8 +207,10 @@ export async function createEvent(req, res) {
     addressId = addressDoc._id;
   }
 
+  const photo = await uploadIfBase64(payload.photo, 'interovert/events');
+
   const event = await Event.create({
-    photo: payload.photo,
+    photo,
     name: payload.name,
     description: payload.description,
     address: addressId,
@@ -259,6 +262,14 @@ export async function updateEvent(req, res) {
     }
   }
 
+  let newPhoto = event.photo;
+  if (body.photo != null) {
+    newPhoto = await uploadIfBase64(body.photo, 'interovert/events');
+    if (newPhoto !== event.photo && event.photo?.includes('cloudinary.com')) {
+      cloudinaryDelete(event.photo).catch(() => {});
+    }
+  }
+
   Object.assign(event, {
     name: body.name ?? event.name,
     description: body.description ?? event.description,
@@ -268,7 +279,7 @@ export async function updateEvent(req, res) {
     maxAttendees: body.maxAttendees ? Number(body.maxAttendees) : event.maxAttendees,
     aboutYou: body.aboutYou ?? event.aboutYou,
     expectations: body.expectations ?? event.expectations,
-    photo: body.photo ?? event.photo,
+    photo: newPhoto,
   });
   await event.save();
   const populated = await event.populate('address');
@@ -284,6 +295,10 @@ export async function deleteEvent(req, res) {
   if (!event) return res.status(404).json({ message: 'Event not found' });
   if (!isOwner(event, req.user._id)) {
     return res.status(403).json({ message: 'Only Event Creator can delete this event' });
+  }
+
+  if (event.photo?.includes('cloudinary.com')) {
+    cloudinaryDelete(event.photo).catch(() => {});
   }
 
   await EventParticipant.deleteMany({ event_id: event._id });
