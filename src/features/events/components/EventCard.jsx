@@ -19,7 +19,10 @@ export default function EventCard({ event, index = 0 }) {
       transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.35) }}
       className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-700/50 bg-gradient-to-b from-zinc-800/40 to-zinc-900/90 shadow-lg shadow-black/30 ring-1 ring-white/[0.04] transition-shadow duration-300 hover:border-zinc-600/60 hover:shadow-xl hover:shadow-indigo-950/20 hover:ring-indigo-500/10"
     >
-      <Link to={`/event/${event._id}`} className="relative block aspect-[16/10] overflow-hidden bg-zinc-950">
+      <Link
+        to={`/event/${event._id}`}
+        className="relative block aspect-[16/10] shrink-0 overflow-hidden bg-zinc-950"
+      >
         <img
           src={photoSrc}
           alt=""
@@ -41,21 +44,24 @@ export default function EventCard({ event, index = 0 }) {
             {event.participantCount ?? 0}
           </span>
         </div>
-        <h3 className="text-xl font-semibold mb-2">{event.name}</h3>
-        <p className="text-sm text-indigo-300 mb-2">Event Creator: {event.eventCreatorLabel}</p>
-        <div className="flex items-center justify-between gap-2 mb-4">
-          <div className="flex items-center gap-2 text-gray-400 text-sm">
+      </Link>
+
+      <div className="flex flex-1 flex-col p-5 pt-4">
+        <h3 className="mb-2 text-xl font-semibold text-white">{event.name}</h3>
+        <p className="mb-2 text-sm text-indigo-300">Event Creator: {event.eventCreatorLabel}</p>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm text-gray-400">
             <MapPin size={16} />
             {event.venue}
           </div>
           {event.distanceKm != null && (
-            <span className="flex items-center gap-1 text-xs bg-indigo-900/60 text-indigo-300 px-2 py-1 rounded-full whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-indigo-900/60 px-2 py-1 text-xs text-indigo-300">
               <MapPin size={10} />
               {event.distanceKm} km
             </span>
           )}
         </div>
-        <p className="mt-3 line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-500">{event.description}</p>
+        <p className="line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-500">{event.description}</p>
         <Link
           to={`/event/${event._id}`}
           className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-900/30 transition hover:from-indigo-500 hover:to-violet-500"

@@ -1,5 +1,13 @@
-import React from 'react';
-import { Search, Filter, ChevronDown, Calendar, MapPin, Navigation } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import {
+  Search,
+  Filter,
+  ChevronDown,
+  Calendar,
+  MapPin,
+  Navigation,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 const RADIUS_OPTIONS = [10, 25, 50, 100];
 
