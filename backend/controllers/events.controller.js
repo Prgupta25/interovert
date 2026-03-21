@@ -52,10 +52,10 @@ async function getEventStats(eventId) {
 }
 
 export async function listEvents(req, res) {
-  const { q, category, dateFrom, dateTo, sortBy, page, limit } = req.query;
+  const { q, category, dateFrom, dateTo, sortBy, page, limit, userLat, userLng, radius } = req.query;
 
   if (isElasticConfigured()) {
-    const esResult = await esSearch({ q, category, dateFrom, dateTo, sortBy, page, limit });
+    const esResult = await esSearch({ q, category, dateFrom, dateTo, sortBy, page, limit, userLat, userLng, radius });
     if (esResult) {
       const eventIds = esResult.hits.map((h) => h._id);
 

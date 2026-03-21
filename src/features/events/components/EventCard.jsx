@@ -23,9 +23,17 @@ export default function EventCard({ event }) {
         </div>
         <h3 className="text-xl font-semibold mb-2">{event.name}</h3>
         <p className="text-sm text-indigo-300 mb-2">Event Creator: {event.eventCreatorLabel}</p>
-        <div className="flex items-center gap-2 text-gray-400 text-sm mb-4">
-          <MapPin size={16} />
-          {event.venue}
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2 text-gray-400 text-sm">
+            <MapPin size={16} />
+            {event.venue}
+          </div>
+          {event.distanceKm != null && (
+            <span className="flex items-center gap-1 text-xs bg-indigo-900/60 text-indigo-300 px-2 py-1 rounded-full whitespace-nowrap">
+              <MapPin size={10} />
+              {event.distanceKm} km
+            </span>
+          )}
         </div>
         <p className="text-xs text-gray-400 mb-3">Participants: {event.participantCount || 0}</p>
         <p className="text-gray-300 mb-4 line-clamp-2">{event.description}</p>

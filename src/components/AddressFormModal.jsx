@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import apiClient from '../services/apiClient'
+import AddressAutocomplete from './AddressAutocomplete'
 
 const EMPTY_FORM = {
   label: '',
@@ -101,6 +102,30 @@ export default function AddressFormModal({ isOpen, onClose, onSaved, editAddress
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+
+              {/* Autocomplete search — fills fields below on selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Search &amp; autofill
+                </label>
+                <AddressAutocomplete
+                  onSelect={(fields) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      line1:      fields.line1      || prev.line1,
+                      city:       fields.city       || prev.city,
+                      state:      fields.state      || prev.state,
+                      country:    fields.country    || prev.country,
+                      postalCode: fields.postalCode || prev.postalCode,
+                    }))
+                  }
+                  inputClassName="bg-gray-800 border-gray-700 focus:border-indigo-500 text-white placeholder-gray-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Pick a suggestion to fill the fields below, then edit as needed.
+                </p>
+              </div>
+
               {/* Label */}
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">

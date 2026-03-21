@@ -21,7 +21,23 @@ export default function Events() {
   const [dateTo, setDateTo] = useState('')
   const [events, setEvents] = useState([])
 
+  // Geo / Near Me state
+  const [nearMe, setNearMe] = useState(false)
+  const [radius, setRadius] = useState(25)
+  const [userAddress, setUserAddress] = useState(null)   // first saved address with geocode
+
   const debounceRef = useRef(null)
+
+  // Fetch the user's saved addresses once on mount to get their geo coords
+  useEffect(() => {
+    apiClient.get('/api/addresses')
+      .then(({ data }) => {
+        const addresses = Array.isArray(data) ? data : (data.addresses ?? [])
+        const withGeo = addresses.find((a) => a.geocode?.lat && a.geocode?.lng)
+        if (withGeo) setUserAddress(withGeo)
+      })
+      .catch(() => {}) // silent — Near Me button just stays hidden
+  }, [])
 
   const loadEvents = useCallback(async (params = {}) => {
     try {
@@ -31,6 +47,13 @@ export default function Events() {
       if (params.dateFrom) query.set('dateFrom', params.dateFrom)
       if (params.dateTo) query.set('dateTo', params.dateTo)
       if (params.sortBy) query.set('sortBy', params.sortBy)
+
+      // Geo params — only when Near Me is active and we have coords
+      if (params.userLat != null && params.userLng != null) {
+        query.set('userLat', params.userLat)
+        query.set('userLng', params.userLng)
+        query.set('radius', params.radius ?? 25)
+      }
 
       const qs = query.toString()
       const { data } = await apiClient.get(`/api/events${qs ? `?${qs}` : ''}`)
@@ -43,9 +66,20 @@ export default function Events() {
   const debouncedLoad = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      loadEvents({ q: searchTerm, category: selectedCategory, dateFrom, dateTo, sortBy })
+      loadEvents({
+        q: searchTerm,
+        category: selectedCategory,
+        dateFrom,
+        dateTo,
+        sortBy,
+        ...(nearMe && userAddress?.geocode && {
+          userLat: userAddress.geocode.lat,
+          userLng: userAddress.geocode.lng,
+          radius,
+        }),
+      })
     }, 350)
-  }, [searchTerm, selectedCategory, dateFrom, dateTo, sortBy, loadEvents])
+  }, [searchTerm, selectedCategory, dateFrom, dateTo, sortBy, nearMe, radius, userAddress, loadEvents])
 
   useEffect(() => {
     debouncedLoad()
@@ -97,6 +131,11 @@ export default function Events() {
           setDateFrom={setDateFrom}
           dateTo={dateTo}
           setDateTo={setDateTo}
+          nearMe={nearMe}
+          setNearMe={setNearMe}
+          radius={radius}
+          setRadius={setRadius}
+          userAddress={userAddress}
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

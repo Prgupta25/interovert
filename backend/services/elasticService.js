@@ -32,6 +32,7 @@ const MAPPINGS = {
     photo:            { type: 'keyword', index: false },
     maxAttendees:     { type: 'integer' },
     participantCount: { type: 'integer' },
+    location:         { type: 'geo_point' },
   },
 };
 
@@ -47,7 +48,9 @@ export async function ensureIndex() {
     });
     console.log(`[elastic] created index "${INDEX}"`);
   } else {
-    console.log(`[elastic] index "${INDEX}" already exists`);
+    // Apply any new field mappings (e.g. geo_point) to existing index
+    await es.indices.putMapping({ index: INDEX, body: MAPPINGS });
+    console.log(`[elastic] index "${INDEX}" mapping updated`);
   }
 }
 
@@ -65,6 +68,7 @@ export async function deleteIndex() {
 export function buildEventDoc(event, address) {
   const addr = address || event.address || {};
   const venue = addr.formattedAddress || [addr.line1, addr.city].filter(Boolean).join(', ');
+  const geocode = addr.geocode;
 
   return {
     name:             event.name,
@@ -80,6 +84,10 @@ export function buildEventDoc(event, address) {
     photo:            event.photo || '',
     maxAttendees:     event.maxAttendees,
     participantCount: event.participantCount || 0,
+    // geo_point — only set when geocode is available
+    ...(geocode?.lat && geocode?.lng && {
+      location: { lat: geocode.lat, lon: geocode.lng },
+    }),
   };
 }
 
@@ -127,7 +135,7 @@ export async function bulkIndexEvents(docs) {
   return result;
 }
 
-export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page = 1, limit = 12 }) {
+export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page = 1, limit = 12, userLat, userLng, radius = 50 }) {
   const es = getClient();
   if (!es) return null;
 
@@ -155,8 +163,29 @@ export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page
     filter.push({ range: { datetime: range } });
   }
 
+  const hasGeo = userLat != null && userLng != null;
+
+  // When user location is provided, filter to events within radius
+  if (hasGeo) {
+    filter.push({
+      geo_distance: {
+        distance: `${radius}km`,
+        location: { lat: Number(userLat), lon: Number(userLng) },
+      },
+    });
+  }
+
   const sort = [];
-  if (sortBy === 'name') {
+  if (hasGeo) {
+    // Nearest first — overrides all other sort options
+    sort.push({
+      _geo_distance: {
+        location: { lat: Number(userLat), lon: Number(userLng) },
+        order: 'asc',
+        unit: 'km',
+      },
+    });
+  } else if (sortBy === 'name') {
     sort.push({ 'name.keyword': 'asc' });
   } else {
     sort.push({ datetime: 'asc' });
@@ -180,9 +209,14 @@ export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page
 
   try {
     const result = await es.search({ index: INDEX, body });
-    const hits = result.hits.hits.map((h) => ({ _id: h._id, ...h._source }));
+    const hits = result.hits.hits.map((h) => ({
+      _id: h._id,
+      ...h._source,
+      // distance is the first sort value when geo sort is active
+      ...(hasGeo && h.sort?.[0] != null && { distanceKm: Number(h.sort[0].toFixed(1)) }),
+    }));
     const total = typeof result.hits.total === 'number' ? result.hits.total : result.hits.total.value;
-    console.log(`[elastic] search: ${total} results (page ${page})`);
+    console.log(`[elastic] search: ${total} results (page ${page})${hasGeo ? ` within ${radius}km` : ''}`);
     return { hits, total, page: Number(page), limit: Number(limit) };
   } catch (err) {
     console.error('[elastic] searchEvents failed:', err.message);

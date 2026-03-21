@@ -1,5 +1,7 @@
 import React from 'react';
-import { Search, Filter, ChevronDown, Calendar } from 'lucide-react';
+import { Search, Filter, ChevronDown, Calendar, MapPin, Navigation } from 'lucide-react';
+
+const RADIUS_OPTIONS = [10, 25, 50, 100];
 
 export default function EventFilters({
   categories,
@@ -15,6 +17,11 @@ export default function EventFilters({
   setDateFrom,
   dateTo,
   setDateTo,
+  nearMe,
+  setNearMe,
+  radius,
+  setRadius,
+  userAddress,
 }) {
   return (
     <div className="space-y-4 mb-8">
@@ -52,16 +59,22 @@ export default function EventFilters({
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
+        {/* Filter & Sort dropdown — disabled when Near Me is active since geo sort takes over */}
         <div className="relative">
           <button
-            onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-            className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            onClick={() => !nearMe && setFilterMenuOpen(!filterMenuOpen)}
+            disabled={nearMe}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              nearMe
+                ? 'bg-gray-800 opacity-40 cursor-not-allowed'
+                : 'bg-gray-800 hover:bg-gray-700'
+            }`}
           >
             <Filter size={20} />
             Filter & Sort
             <ChevronDown size={16} className={`transform transition-transform ${filterMenuOpen ? 'rotate-180' : ''}`} />
           </button>
-          {filterMenuOpen && (
+          {filterMenuOpen && !nearMe && (
             <div className="absolute mt-2 w-48 bg-gray-800 rounded-lg shadow-lg z-10">
               <div className="p-4 space-y-2">
                 <h3 className="font-semibold mb-2">Sort by</h3>
@@ -88,6 +101,7 @@ export default function EventFilters({
           )}
         </div>
 
+        {/* Date range */}
         <div className="flex items-center gap-2">
           <Calendar size={18} className="text-gray-400" />
           <input
@@ -114,6 +128,50 @@ export default function EventFilters({
             </button>
           )}
         </div>
+
+        {/* Near Me — only rendered when the user has a saved address with geocode */}
+        {userAddress && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setNearMe(!nearMe)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                nearMe
+                  ? 'bg-indigo-600 hover:bg-indigo-700'
+                  : 'bg-gray-800 hover:bg-gray-700'
+              }`}
+            >
+              <Navigation size={16} className={nearMe ? 'text-white' : 'text-gray-400'} />
+              Near Me
+            </button>
+
+            {/* Radius selector — only visible when Near Me is on */}
+            {nearMe && (
+              <div className="flex items-center gap-1">
+                {RADIUS_OPTIONS.map((km) => (
+                  <button
+                    key={km}
+                    onClick={() => setRadius(km)}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                      radius === km
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {km}km
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Show which address is being used */}
+            {nearMe && (
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                <MapPin size={12} />
+                {userAddress.label || userAddress.city}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

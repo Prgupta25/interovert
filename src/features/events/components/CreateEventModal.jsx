@@ -4,6 +4,7 @@ import { X, MapPin, ChevronDown } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import apiClient from '../../../services/apiClient';
 import { getAuthToken } from '../../../utils/session';
+import AddressAutocomplete from '../../../components/AddressAutocomplete';
 
 const EMPTY_ADDRESS = {
   addressLabel: '',
@@ -225,6 +226,26 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
                 {/* New address fields */}
                 {addressMode === 'new' && (
                   <div className="space-y-3">
+                    {/* Autocomplete search — fills fields below on pick */}
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Search &amp; autofill</label>
+                      <AddressAutocomplete
+                        placeholder="Type a venue or address to autofill…"
+                        onSelect={(fields) =>
+                          setNewAddress((prev) => ({
+                            ...prev,
+                            addressLine1:    fields.line1      || prev.addressLine1,
+                            addressCity:     fields.city       || prev.addressCity,
+                            addressState:    fields.state      || prev.addressState,
+                            addressCountry:  fields.country    || prev.addressCountry,
+                            addressPostalCode: fields.postalCode || prev.addressPostalCode,
+                          }))
+                        }
+                        inputClassName="bg-gray-600 border-gray-500 focus:border-indigo-500 text-white placeholder-gray-400"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Pick a result to autofill, then edit below if needed.</p>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs text-gray-400 mb-1">
