@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Filter, ChevronDown } from 'lucide-react';
+import { Search, Filter, ChevronDown, Calendar } from 'lucide-react';
 
 export default function EventFilters({
   categories,
@@ -11,6 +11,10 @@ export default function EventFilters({
   setSortBy,
   filterMenuOpen,
   setFilterMenuOpen,
+  dateFrom,
+  setDateFrom,
+  dateTo,
+  setDateTo,
 }) {
   return (
     <div className="space-y-4 mb-8">
@@ -47,40 +51,69 @@ export default function EventFilters({
         ))}
       </div>
 
-      <div className="relative">
-        <button
-          onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-          className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          <Filter size={20} />
-          Filter & Sort
-          <ChevronDown size={16} className={`transform transition-transform ${filterMenuOpen ? 'rotate-180' : ''}`} />
-        </button>
-        {filterMenuOpen && (
-          <div className="absolute mt-2 w-48 bg-gray-800 rounded-lg shadow-lg z-10">
-            <div className="p-4 space-y-2">
-              <h3 className="font-semibold mb-2">Sort by</h3>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  checked={sortBy === 'date'}
-                  onChange={() => setSortBy('date')}
-                  className="form-radio text-indigo-600"
-                />
-                <span>Date</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  checked={sortBy === 'name'}
-                  onChange={() => setSortBy('name')}
-                  className="form-radio text-indigo-600"
-                />
-                <span>Name</span>
-              </label>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative">
+          <button
+            onClick={() => setFilterMenuOpen(!filterMenuOpen)}
+            className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Filter size={20} />
+            Filter & Sort
+            <ChevronDown size={16} className={`transform transition-transform ${filterMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {filterMenuOpen && (
+            <div className="absolute mt-2 w-48 bg-gray-800 rounded-lg shadow-lg z-10">
+              <div className="p-4 space-y-2">
+                <h3 className="font-semibold mb-2">Sort by</h3>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={sortBy === 'date'}
+                    onChange={() => setSortBy('date')}
+                    className="form-radio text-indigo-600"
+                  />
+                  <span>Date</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={sortBy === 'name'}
+                    onChange={() => setSortBy('name')}
+                    className="form-radio text-indigo-600"
+                  />
+                  <span>Name</span>
+                </label>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Calendar size={18} className="text-gray-400" />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="bg-gray-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+            placeholder="From"
+          />
+          <span className="text-gray-500">to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="bg-gray-800 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+            placeholder="To"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(''); setDateTo(''); }}
+              className="text-xs text-gray-400 hover:text-white ml-1"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

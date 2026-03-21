@@ -1,4 +1,6 @@
+import mongoose from 'mongoose';
 import Event from '../models/Event.js';
+import Address from '../models/Address.js';
 import EventParticipant from '../models/EventParticipant.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
@@ -10,6 +12,15 @@ import {
   buildWhatsappGroupPayload,
   triggerWhatsappGroupCreation,
 } from '../services/whatsappService.js';
+import { geocodeAddress, buildFormattedAddress } from '../services/geocodeService.js';
+import {
+  searchEvents as esSearch,
+  indexEvent as esIndex,
+  removeEvent as esRemove,
+  buildEventDoc,
+  bulkIndexEvents,
+  isElasticConfigured,
+} from '../services/elasticService.js';
 
 function isOwner(event, userId) {
   return String(event.owner_id) === String(userId);
@@ -40,28 +51,58 @@ async function getEventStats(eventId) {
 }
 
 export async function listEvents(req, res) {
-  const events = await Event.find().sort({ datetime: 1, createdAt: -1 }).lean();
+  const { q, category, dateFrom, dateTo, sortBy, page, limit } = req.query;
+
+  if (isElasticConfigured()) {
+    const esResult = await esSearch({ q, category, dateFrom, dateTo, sortBy, page, limit });
+    if (esResult) {
+      const eventIds = esResult.hits.map((h) => h._id);
+
+      const [mongoEvents, stats] = await Promise.all([
+        Event.find({ _id: { $in: eventIds } }).populate('address').lean(),
+        enrichStats(eventIds),
+      ]);
+      const [participantCounts, favoriteCounts, ratingAgg] = stats;
+      const mongoMap = new Map(mongoEvents.map((e) => [String(e._id), e]));
+
+      const participantCountMap = new Map(participantCounts.map((c) => [String(c._id), c.count]));
+      const favoriteCountMap = new Map(favoriteCounts.map((c) => [String(c._id), c.count]));
+      const ratingMap = new Map(ratingAgg.map((r) => [String(r._id), r]));
+
+      const enriched = esResult.hits.map((hit) => {
+        const mongo = mongoMap.get(String(hit._id)) || {};
+        return {
+          ...mongo,
+          ...hit,
+          photo: mongo.photo || hit.photo,
+          address: mongo.address || undefined,
+          participantCount: participantCountMap.get(String(hit._id)) || 0,
+          favoriteCount: favoriteCountMap.get(String(hit._id)) || 0,
+          ratingCount: ratingMap.get(String(hit._id))?.ratingCount || 0,
+          averageRating: ratingMap.get(String(hit._id))?.averageRating
+            ? Number(ratingMap.get(String(hit._id)).averageRating.toFixed(1))
+            : 0,
+          eventCreatorLabel: hit.ownerName,
+        };
+      });
+
+      return res.json({ events: enriched, total: esResult.total, page: esResult.page, limit: esResult.limit });
+    }
+  }
+
+  // MongoDB fallback
+  const events = await Event.find()
+    .populate('address')
+    .sort({ datetime: 1, createdAt: -1 })
+    .lean();
   const eventIds = events.map((e) => e._id);
-  const [participantCounts, favoriteCounts, ratingAgg] = await Promise.all([
-    EventParticipant.aggregate([
-      { $match: { event_id: { $in: eventIds } } },
-      { $group: { _id: '$event_id', count: { $sum: 1 } } },
-    ]),
-    EventFavorite.aggregate([
-      { $match: { event_id: { $in: eventIds } } },
-      { $group: { _id: '$event_id', count: { $sum: 1 } } },
-    ]),
-    EventRating.aggregate([
-      { $match: { event_id: { $in: eventIds } } },
-      { $group: { _id: '$event_id', averageRating: { $avg: '$rating' }, ratingCount: { $sum: 1 } } },
-    ]),
-  ]);
+  const [participantCounts, favoriteCounts, ratingAgg] = await enrichStats(eventIds);
 
   const participantCountMap = new Map(participantCounts.map((c) => [String(c._id), c.count]));
   const favoriteCountMap = new Map(favoriteCounts.map((c) => [String(c._id), c.count]));
   const ratingMap = new Map(ratingAgg.map((r) => [String(r._id), r]));
 
-  res.json(events.map((event) => ({
+  const enriched = events.map((event) => ({
     ...event,
     participantCount: participantCountMap.get(String(event._id)) || 0,
     favoriteCount: favoriteCountMap.get(String(event._id)) || 0,
@@ -70,11 +111,33 @@ export async function listEvents(req, res) {
       ? Number(ratingMap.get(String(event._id)).averageRating.toFixed(1))
       : 0,
     eventCreatorLabel: event.ownerName,
-  })));
+  }));
+
+  return res.json({ events: enriched, total: enriched.length, page: 1, limit: enriched.length });
+}
+
+async function enrichStats(eventIds) {
+  const objectIds = eventIds.map((id) =>
+    id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(String(id))
+  );
+  return Promise.all([
+    EventParticipant.aggregate([
+      { $match: { event_id: { $in: objectIds } } },
+      { $group: { _id: '$event_id', count: { $sum: 1 } } },
+    ]),
+    EventFavorite.aggregate([
+      { $match: { event_id: { $in: objectIds } } },
+      { $group: { _id: '$event_id', count: { $sum: 1 } } },
+    ]),
+    EventRating.aggregate([
+      { $match: { event_id: { $in: objectIds } } },
+      { $group: { _id: '$event_id', averageRating: { $avg: '$rating' }, ratingCount: { $sum: 1 } } },
+    ]),
+  ]);
 }
 
 export async function getEvent(req, res) {
-  const event = await Event.findById(req.params.eventId).lean();
+  const event = await Event.findById(req.params.eventId).populate('address').lean();
   if (!event) return res.status(404).json({ message: 'Event not found' });
 
   const stats = await getEventStats(event._id);
@@ -106,14 +169,64 @@ export async function getJoinStatus(req, res) {
 
 export async function createEvent(req, res) {
   const payload = req.body || {};
+
+  // Resolve address: use existing addressId OR create a new event address from fields
+  let addressId = payload.addressId;
+
+  if (!addressId) {
+    const { addressLabel, addressLine1, addressLine2, addressCity, addressState, addressCountry, addressPostalCode } = payload;
+
+    if (!addressLine1 || !addressCity) {
+      return res.status(400).json({ message: 'Address line1 and city are required' });
+    }
+
+    const formatted = buildFormattedAddress({
+      line1: addressLine1,
+      line2: addressLine2,
+      city: addressCity,
+      state: addressState,
+      postalCode: addressPostalCode,
+      country: addressCountry,
+    });
+    const geocode = await geocodeAddress(formatted);
+
+    const addressDoc = await Address.create({
+      owner_id: req.user._id,
+      type: 'event',
+      label: (addressLabel || 'Event Venue').trim(),
+      line1: addressLine1.trim(),
+      line2: (addressLine2 || '').trim(),
+      city: addressCity.trim(),
+      state: (addressState || '').trim(),
+      country: (addressCountry || '').trim(),
+      postalCode: (addressPostalCode || '').trim(),
+      formattedAddress: formatted,
+      geocode,
+    });
+    addressId = addressDoc._id;
+  }
+
   const event = await Event.create({
-    ...payload,
+    photo: payload.photo,
+    name: payload.name,
+    description: payload.description,
+    address: addressId,
+    datetime: payload.datetime ? new Date(payload.datetime) : null,
+    category: payload.category,
+    activities: payload.activities,
+    maxAttendees: Number(payload.maxAttendees),
+    aboutYou: payload.aboutYou,
+    expectations: payload.expectations,
     owner_id: req.user._id,
     ownerName: req.user.name,
-    datetime: payload.datetime ? new Date(payload.datetime) : null,
-    maxAttendees: Number(payload.maxAttendees),
   });
-  return res.status(201).json({ message: 'Event created', event });
+
+  const populated = await event.populate('address');
+
+  const esDoc = buildEventDoc(populated.toObject());
+  esIndex(populated._id, esDoc).catch(() => {});
+
+  return res.status(201).json({ message: 'Event created', event: populated });
 }
 
 export async function updateEvent(req, res) {
@@ -123,13 +236,47 @@ export async function updateEvent(req, res) {
     return res.status(403).json({ message: 'Only Event Creator can edit this event' });
   }
 
+  const body = req.body || {};
+
+  // If address fields are provided, update the linked address doc
+  const hasAddressFields = body.addressLine1 || body.addressCity;
+  if (hasAddressFields) {
+    const addressDoc = await Address.findById(event.address);
+    if (addressDoc && String(addressDoc.owner_id) === String(req.user._id)) {
+      const updated = {
+        label: body.addressLabel ?? addressDoc.label,
+        line1: (body.addressLine1 ?? addressDoc.line1).trim(),
+        line2: ((body.addressLine2 ?? addressDoc.line2) || '').trim(),
+        city: (body.addressCity ?? addressDoc.city).trim(),
+        state: ((body.addressState ?? addressDoc.state) || '').trim(),
+        country: ((body.addressCountry ?? addressDoc.country) || '').trim(),
+        postalCode: ((body.addressPostalCode ?? addressDoc.postalCode) || '').trim(),
+      };
+      updated.formattedAddress = buildFormattedAddress(updated);
+      updated.geocode = await geocodeAddress(updated.formattedAddress);
+      Object.assign(addressDoc, updated);
+      await addressDoc.save();
+    }
+  }
+
   Object.assign(event, {
-    ...req.body,
-    datetime: req.body?.datetime ? new Date(req.body.datetime) : event.datetime,
-    maxAttendees: req.body?.maxAttendees ? Number(req.body.maxAttendees) : event.maxAttendees,
+    name: body.name ?? event.name,
+    description: body.description ?? event.description,
+    datetime: body.datetime ? new Date(body.datetime) : event.datetime,
+    category: body.category ?? event.category,
+    activities: body.activities ?? event.activities,
+    maxAttendees: body.maxAttendees ? Number(body.maxAttendees) : event.maxAttendees,
+    aboutYou: body.aboutYou ?? event.aboutYou,
+    expectations: body.expectations ?? event.expectations,
+    photo: body.photo ?? event.photo,
   });
   await event.save();
-  return res.json({ message: 'Event updated', event });
+  const populated = await event.populate('address');
+
+  const esDoc = buildEventDoc(populated.toObject());
+  esIndex(populated._id, esDoc).catch(() => {});
+
+  return res.json({ message: 'Event updated', event: populated });
 }
 
 export async function deleteEvent(req, res) {
@@ -144,6 +291,9 @@ export async function deleteEvent(req, res) {
   await EventRating.deleteMany({ event_id: event._id });
   await Notification.deleteMany({ 'metadata.eventId': String(event._id) });
   await event.deleteOne();
+
+  esRemove(event._id).catch(() => {});
+
   return res.json({ message: 'Event deleted' });
 }
 
@@ -420,4 +570,25 @@ export async function getEventRatings(req, res) {
       createdAt: row.createdAt,
     })),
   });
+}
+
+export async function reindexEvents(req, res) {
+  if (!isElasticConfigured()) {
+    return res.status(400).json({ message: 'Elasticsearch is not configured' });
+  }
+
+  const events = await Event.find().populate('address').lean();
+
+  const participantCounts = await EventParticipant.aggregate([
+    { $group: { _id: '$event_id', count: { $sum: 1 } } },
+  ]);
+  const pcMap = new Map(participantCounts.map((c) => [String(c._id), c.count]));
+
+  const docs = events.map((e) => ({
+    id: String(e._id),
+    doc: buildEventDoc({ ...e, participantCount: pcMap.get(String(e._id)) || 0 }),
+  }));
+
+  await bulkIndexEvents(docs);
+  return res.json({ message: `Reindexed ${docs.length} events` });
 }

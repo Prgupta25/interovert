@@ -4,27 +4,7 @@ import env from '../config/env.js';
 
 const OTP_HTML = (otp) => `<p>Your OTP for Introvert is: <strong>${otp}</strong></p><p>It expires in 10 minutes.</p>`;
 
-export async function sendOtpEmail(email, otp) {
-  if (env.resendApiKey) {
-    try {
-      const resend = new Resend(env.resendApiKey);
-      const { error } = await resend.emails.send({
-        from: env.emailFrom,
-        to: email,
-        subject: 'Introvert – Login OTP',
-        html: OTP_HTML(otp),
-      });
-      if (error) {
-        console.error('Resend email failed:', error.message);
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.error('Resend send failed:', error.message);
-      return false;
-    }
-  }
-
+async function sendViaNodemailer(email, otp) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     host: 'smtp.gmail.com',
@@ -36,16 +16,36 @@ export async function sendOtpEmail(email, otp) {
     },
   });
 
+  await transporter.sendMail({
+    from: { name: 'Introvert - Login OTP', address: env.emailUser },
+    to: email,
+    subject: 'LOGIN OTP',
+    html: OTP_HTML(otp),
+  });
+}
+
+export async function sendOtpEmail(email, otp) {
+  if (env.resendApiKey) {
+    try {
+      const resend = new Resend(env.resendApiKey);
+      const { error } = await resend.emails.send({
+        from: env.emailFrom,
+        to: email,
+        subject: 'Introvert – Login OTP',
+        html: OTP_HTML(otp),
+      });
+      if (!error) return true;
+      console.error('Resend email failed, falling back to nodemailer:', error.message);
+    } catch (err) {
+      console.error('Resend send threw, falling back to nodemailer:', err.message);
+    }
+  }
+
   try {
-    await transporter.sendMail({
-      from: { name: 'Introvert - Login OTP', address: env.emailUser },
-      to: email,
-      subject: 'LOGIN OTP',
-      html: OTP_HTML(otp),
-    });
+    await sendViaNodemailer(email, otp);
     return true;
   } catch (error) {
-    console.error('Email send failed:', error.message);
+    console.error('Nodemailer send failed:', error.message);
     return false;
   }
 }

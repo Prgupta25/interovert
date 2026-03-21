@@ -18,6 +18,7 @@ import {
   getWhatsappGroupPayload,
   joinEvent,
   listEvents,
+  reindexEvents,
   submitEventRating,
   toggleFavorite,
   updateEvent,
@@ -40,5 +41,6 @@ router.get('/:eventId/participants', requireAuth, validateEventIdParam, asyncHan
 router.get('/:eventId/participants/export', requireAuth, validateEventIdParam, asyncHandler(exportParticipants));
 router.get('/:eventId/whatsapp-group-payload', requireAuth, validateEventIdParam, asyncHandler(getWhatsappGroupPayload));
 router.post('/:eventId/whatsapp-group/create', requireAuth, validateEventIdParam, asyncHandler(createWhatsappGroup));
+router.post('/reindex', requireAuth, asyncHandler(reindexEvents));
 
 export default router;

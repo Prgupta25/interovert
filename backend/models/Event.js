@@ -5,7 +5,8 @@ const eventSchema = new mongoose.Schema(
     photo: { type: String },
     name: { type: String, required: true, trim: true },
     description: { type: String, required: true, trim: true },
-    venue: { type: String, required: true, trim: true },
+    // address replaces the old plain-text venue field
+    address: { type: mongoose.Schema.Types.ObjectId, ref: 'Address', required: true },
     datetime: { type: Date, required: true },
     category: { type: String, required: true, trim: true },
     activities: { type: String, required: true, trim: true },

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import { toast } from 'react-hot-toast'
@@ -17,20 +17,40 @@ export default function Events() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [sortBy, setSortBy] = useState('date')
   const [filterMenuOpen, setFilterMenuOpen] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [events, setEvents] = useState([])
 
-  const loadEvents = async () => {
+  const debounceRef = useRef(null)
+
+  const loadEvents = useCallback(async (params = {}) => {
     try {
-      const { data } = await apiClient.get('/api/events')
-      setEvents(data)
-    } catch (error) {
+      const query = new URLSearchParams()
+      if (params.q) query.set('q', params.q)
+      if (params.category && params.category !== 'all') query.set('category', params.category)
+      if (params.dateFrom) query.set('dateFrom', params.dateFrom)
+      if (params.dateTo) query.set('dateTo', params.dateTo)
+      if (params.sortBy) query.set('sortBy', params.sortBy)
+
+      const qs = query.toString()
+      const { data } = await apiClient.get(`/api/events${qs ? `?${qs}` : ''}`)
+      setEvents(data.events ?? data)
+    } catch {
       toast.error('Failed to load events')
     }
-  }
+  }, [])
+
+  const debouncedLoad = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      loadEvents({ q: searchTerm, category: selectedCategory, dateFrom, dateTo, sortBy })
+    }, 350)
+  }, [searchTerm, selectedCategory, dateFrom, dateTo, sortBy, loadEvents])
 
   useEffect(() => {
-    loadEvents()
-  }, [])
+    debouncedLoad()
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [debouncedLoad])
 
   useEffect(() => {
     const socket = getSocket()
@@ -45,18 +65,6 @@ export default function Events() {
     socket.on('notification:new', handleNotification)
     return () => socket.off('notification:new', handleNotification)
   }, [])
-
-  
-  const filteredEvents = events
-    .filter(event => 
-      (selectedCategory === 'all' || event.category === selectedCategory) &&
-      (event.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       event.description?.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
-    .sort((a, b) => {
-      if (sortBy === 'date') return new Date(a.datetime) - new Date(b.datetime)
-      return a.name.localeCompare(b.name)
-    })
 
   return (
     <div className="min-h-screen pt-28 bg-gray-900 text-white p-4">
@@ -75,7 +83,6 @@ export default function Events() {
           </motion.button>
         </div>
 
-        
         <EventFilters
           categories={eventCategories}
           searchTerm={searchTerm}
@@ -86,22 +93,23 @@ export default function Events() {
           setSortBy={setSortBy}
           filterMenuOpen={filterMenuOpen}
           setFilterMenuOpen={setFilterMenuOpen}
+          dateFrom={dateFrom}
+          setDateFrom={setDateFrom}
+          dateTo={dateTo}
+          setDateTo={setDateTo}
         />
 
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event) => <EventCard key={event._id} event={event} />)}
+          {events.map((event) => <EventCard key={event._id} event={event} />)}
         </div>
       </div>
 
-      
       <CreateEventModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onCreated={loadEvents}
+        onCreated={() => loadEvents({ q: searchTerm, category: selectedCategory, dateFrom, dateTo, sortBy })}
         categories={eventCategories}
       />
     </div>
   )
 }
-

@@ -29,6 +29,8 @@ const env = {
   get twilioWhatsappFrom() { return globalThis.process.env.TWILIO_WHATSAPP_FROM || ''; },
   get whatsappWebhookUrl() { return globalThis.process.env.WHATSAPP_GROUP_WEBHOOK_URL || ''; },
   get whatsappWebhookToken() { return globalThis.process.env.WHATSAPP_GROUP_WEBHOOK_TOKEN || ''; },
+  get elasticUrl() { return globalThis.process.env.ELASTICSEARCH_URL || ''; },
+  get elasticApiKey() { return globalThis.process.env.ELASTICSEARCH_API_KEY || ''; },
 };
 
 export function validateStartupEnv() {

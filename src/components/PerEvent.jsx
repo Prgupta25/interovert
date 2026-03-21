@@ -329,9 +329,27 @@ export default function PerEvent() {
               <Calendar size={20} />
               {new Date(event.datetime).toLocaleString()}
             </div>
-            <div className="flex items-center gap-2">
-              <MapPin size={20} />
-              {event.venue}
+            <div className="flex items-start gap-2">
+              <MapPin size={20} className="mt-0.5 shrink-0" />
+              <div>
+                {event.address ? (
+                  <>
+                    <span>{event.address.formattedAddress || event.address.line1}</span>
+                    {event.address.geocode?.lat && (
+                      <a
+                        href={`https://www.openstreetmap.org/?mlat=${event.address.geocode.lat}&mlon=${event.address.geocode.lng}#map=16/${event.address.geocode.lat}/${event.address.geocode.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 text-xs text-emerald-400 hover:text-emerald-300 underline"
+                      >
+                        View on Map
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-gray-400">Address not specified</span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Users size={20} />

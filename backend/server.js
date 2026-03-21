@@ -11,12 +11,14 @@ import jwt from 'jsonwebtoken';
 import env, { validateStartupEnv } from './config/env.js';
 import authRoutes from './routes/auth.js';
 import eventRoutes from './routes/events.js';
+import addressRoutes from './routes/addresses.js';
 import notificationRoutes from './routes/notifications.js';
 import webhookRoutes from './routes/webhooks.js';
 import { getUserRoom, setIO } from './services/socketService.js';
 import communityRoutes from './routes/community.js';
 import { getPgPool, hasPostgresConfig } from './config/pg.js';
 import { registerCommunitySocketHandlers } from './services/communitySocket.js';
+import { ensureIndex as ensureElasticIndex } from './services/elasticService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -50,7 +52,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 if (env.mongoUri) {
   mongoose.connect(env.mongoUri)
@@ -60,6 +62,10 @@ if (env.mongoUri) {
       globalThis.process.exit(1);
     });
 }
+
+ensureElasticIndex().catch((err) =>
+  console.warn('[elastic] index setup skipped:', err.message)
+);
 
 if (hasPostgresConfig()) {
   const pgPool = getPgPool();
@@ -103,6 +109,7 @@ app.get('/api/test', (req, res) => {
 
 app.use('/api', authRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/addresses', addressRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/community', communityRoutes);

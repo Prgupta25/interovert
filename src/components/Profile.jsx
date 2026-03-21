@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Settings, Edit2, Plus, Camera, Trash2, ChevronDown, Rocket, Users, Briefcase, GraduationCap, MapPin, Baby, Sparkles, Github, Linkedin, Twitter, Instagram, Facebook, Link, Save, ArrowLeft } from 'lucide-react'
+import { X, Settings, Edit2, Plus, Camera, Trash2, ChevronDown, Rocket, Users, Briefcase, GraduationCap, MapPin, Baby, Sparkles, Github, Linkedin, Twitter, Instagram, Facebook, Link, Save, ArrowLeft, Pencil } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { clearSession, getAuthToken, getCurrentUser, setSession } from '../utils/session'
@@ -14,6 +14,7 @@ import {
   lookingForOptions,
   skillLevels,
 } from '../features/profile/constants'
+import AddressFormModal from './AddressFormModal'
 
 export default function Profile() {
   const navigate = useNavigate()
@@ -47,6 +48,11 @@ export default function Profile() {
   const [newCustomAboutMe, setNewCustomAboutMe] = useState('')
   const fileInputRef = useRef(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Address management
+  const [addresses, setAddresses] = useState([])
+  const [showAddressModal, setShowAddressModal] = useState(false)
+  const [editingAddress, setEditingAddress] = useState(null)
 
   useEffect(() => {
     const savedProfile = localStorage.getItem('profileData')
@@ -112,7 +118,39 @@ export default function Profile() {
     }
 
     loadProfile()
+    loadAddresses()
   }, [navigate])
+
+  const loadAddresses = async () => {
+    try {
+      const { data } = await apiClient.get('/api/addresses')
+      setAddresses(data || [])
+    } catch {
+      // silent — addresses are optional
+    }
+  }
+
+  const handleAddressSaved = (saved) => {
+    setAddresses((prev) => {
+      const idx = prev.findIndex((a) => a._id === saved._id)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = saved
+        return next
+      }
+      return [saved, ...prev]
+    })
+  }
+
+  const handleDeleteAddress = async (addressId) => {
+    try {
+      await apiClient.delete(`/api/addresses/${addressId}`)
+      setAddresses((prev) => prev.filter((a) => a._id !== addressId))
+      toast.success('Address deleted')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete address')
+    }
+  }
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0]
@@ -684,6 +722,88 @@ export default function Profile() {
           </div>
         </motion.section>
 
+        {/* ── My Addresses ── */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gray-800 rounded-xl p-6 space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold flex items-center gap-2">
+              <MapPin size={22} className="text-indigo-400" />
+              My Addresses
+            </h2>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => { setEditingAddress(null); setShowAddressModal(true) }}
+              className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors"
+            >
+              <Plus size={16} />
+              Add Address
+            </motion.button>
+          </div>
+
+          {addresses.length === 0 && (
+            <p className="text-gray-400 text-sm">No saved addresses yet. Add one above.</p>
+          )}
+
+          <div className="space-y-3">
+            {addresses.map((addr) => (
+              <div key={addr._id} className="bg-gray-700 rounded-lg p-4 flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-indigo-300 bg-indigo-900/40 px-2 py-0.5 rounded">
+                      {addr.label || 'Address'}
+                    </span>
+                    {addr.geocode?.lat && (
+                      <a
+                        href={`https://www.openstreetmap.org/?mlat=${addr.geocode.lat}&mlon=${addr.geocode.lng}#map=16/${addr.geocode.lat}/${addr.geocode.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                        title="View on map"
+                      >
+                        <MapPin size={12} />
+                        Map
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-white text-sm font-medium">{addr.line1}{addr.line2 ? `, ${addr.line2}` : ''}</p>
+                  <p className="text-gray-300 text-sm">
+                    {[addr.city, addr.state, addr.postalCode, addr.country].filter(Boolean).join(', ')}
+                  </p>
+                  {addr.geocode?.lat && (
+                    <p className="text-gray-500 text-xs mt-1">
+                      📍 {addr.geocode.lat.toFixed(5)}, {addr.geocode.lng.toFixed(5)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => { setEditingAddress(addr); setShowAddressModal(true) }}
+                    className="p-1.5 rounded-lg bg-gray-600 hover:bg-indigo-600 text-gray-300 hover:text-white transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil size={15} />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleDeleteAddress(addr._id)}
+                    className="p-1.5 rounded-lg bg-gray-600 hover:bg-red-600 text-gray-300 hover:text-white transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={15} />
+                  </motion.button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.section>
+
         <div className="flex flex-wrap justify-center gap-3 pt-2">
           <button
             onClick={handleSave}
@@ -701,6 +821,14 @@ export default function Profile() {
           </button>
         </div>
       </div>
+
+      {/* Address create / edit modal */}
+      <AddressFormModal
+        isOpen={showAddressModal}
+        onClose={() => setShowAddressModal(false)}
+        onSaved={handleAddressSaved}
+        editAddress={editingAddress}
+      />
     </div>
   )
 }
