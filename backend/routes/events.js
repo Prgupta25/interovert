@@ -22,11 +22,14 @@ import {
   submitEventRating,
   toggleFavorite,
   updateEvent,
+  getRecommendedEvents,
 } from '../controllers/events.controller.js';
 
 const router = Router();
 
 router.get('/', asyncHandler(listEvents));
+// ⚠️  Must be registered BEFORE /:eventId so "recommendations" isn't treated as an id
+router.get('/recommendations', requireAuth, asyncHandler(getRecommendedEvents));
 router.get('/:eventId', validateEventIdParam, asyncHandler(getEvent));
 router.get('/:eventId/ratings', validateEventIdParam, optionalAuth, asyncHandler(getEventRatings));
 router.get('/:eventId/join-status', requireAuth, validateEventIdParam, asyncHandler(getJoinStatus));

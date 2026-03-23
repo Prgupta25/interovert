@@ -76,8 +76,8 @@ export function buildEventDoc(event, address) {
     activities:       event.activities,
     ownerName:        event.ownerName,
     venue,
-    category:         event.category,
-    city:             addr.city || '',
+    category:         (event.category || '').toLowerCase(),
+    city:             (addr.city || '').toLowerCase(),
     owner_id:         String(event.owner_id),
     datetime:         event.datetime,
     createdAt:        event.createdAt,
@@ -135,7 +135,7 @@ export async function bulkIndexEvents(docs) {
   return result;
 }
 
-export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page = 1, limit = 12, userLat, userLng, radius = 50 }) {
+export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page = 1, limit = 100, userLat, userLng, radius = 50 }) {
   const es = getClient();
   if (!es) return null;
 
@@ -153,7 +153,7 @@ export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page
   }
 
   if (category && category !== 'all') {
-    filter.push({ term: { category } });
+    filter.push({ term: { category: category.toLowerCase() } });
   }
 
   const range = {};

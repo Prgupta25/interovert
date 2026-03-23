@@ -19,6 +19,7 @@ import communityRoutes from './routes/community.js';
 import { getPgPool, hasPostgresConfig } from './config/pg.js';
 import { registerCommunitySocketHandlers } from './services/communitySocket.js';
 import { ensureIndex as ensureElasticIndex } from './services/elasticService.js';
+import { ensureSignalsIndex } from './services/recommendationService.js';
 import { detectIntentText, isDialogflowConfigured } from './services/dialogflowChat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -67,6 +68,9 @@ if (env.mongoUri) {
 ensureElasticIndex().catch((err) =>
   console.warn('[elastic] index setup skipped:', err.message)
 );
+ensureSignalsIndex().catch((err) =>
+  console.warn('[recommend] signals index setup skipped:', err.message)
+);
 
 if (hasPostgresConfig()) {
   const pgPool = getPgPool();
@@ -74,7 +78,7 @@ if (hasPostgresConfig()) {
     .then(() => console.log('Connected to PostgreSQL'))
     .catch((err) => {
       console.error('PostgreSQL connection error:', err.message);
-      globalThis.process.exit(1);
+      console.warn('Community features (PostgreSQL) will be unavailable.');
     });
 }
 

@@ -10,6 +10,7 @@ import { eventCategories } from '../features/events/constants'
 import EventFilters from '../features/events/components/EventFilters'
 import EventCard from '../features/events/components/EventCard'
 import CreateEventModal from '../features/events/components/CreateEventModal'
+import RecommendedEvents from '../features/events/components/RecommendedEvents'
 
 export default function Events() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -137,6 +138,9 @@ export default function Events() {
             Create event
           </motion.button>
         </motion.header>
+
+        {/* Personalised "For You" strip — only renders when the user has signal history */}
+        <RecommendedEvents />
 
         <EventFilters
           categories={eventCategories}

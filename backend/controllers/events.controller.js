@@ -22,6 +22,11 @@ import {
   bulkIndexEvents,
   isElasticConfigured,
 } from '../services/elasticService.js';
+import {
+  recordSignal,
+  getRecommendations,
+  isRecommendationConfigured,
+} from '../services/recommendationService.js';
 
 function isOwner(event, userId) {
   return String(event.owner_id) === String(userId);
@@ -379,6 +384,16 @@ export async function joinEvent(req, res) {
     phoneNumber: req.user.phoneNumber,
   });
 
+  // Record recommendation signal (fire-and-forget — never blocks the response)
+  const populatedForSignal = await event.populate('address');
+  recordSignal({
+    userId:     String(req.user._id),
+    eventId:    String(event._id),
+    category:   event.category,
+    city:       populatedForSignal?.address?.city || '',
+    signalType: 'join',
+  }).catch(() => {});
+
   return res.status(201).json({
     message: 'Joined event successfully',
     participant,
@@ -494,7 +509,7 @@ export async function getEventInteractionStatus(req, res) {
 }
 
 export async function toggleFavorite(req, res) {
-  const event = await Event.findById(req.params.eventId).select('_id');
+  const event = await Event.findById(req.params.eventId).select('_id category address');
   if (!event) return res.status(404).json({ message: 'Event not found' });
 
   const existing = await EventFavorite.findOne({ event_id: event._id, user_id: req.user._id });
@@ -506,6 +521,16 @@ export async function toggleFavorite(req, res) {
   } else {
     await EventFavorite.create({ event_id: event._id, user_id: req.user._id });
     isFavorited = true;
+
+    // Record recommendation signal only when adding (not removing) a favorite
+    const populatedForSignal = await event.populate('address');
+    recordSignal({
+      userId:     String(req.user._id),
+      eventId:    String(event._id),
+      category:   event.category,
+      city:       populatedForSignal?.address?.city || '',
+      signalType: 'favorite',
+    }).catch(() => {});
   }
 
   const favoriteCount = await EventFavorite.countDocuments({ event_id: event._id });
@@ -589,6 +614,61 @@ export async function getEventRatings(req, res) {
         createdAt: row.createdAt,
       };
     }),
+  });
+}
+
+/**
+ * GET /api/events/recommendations
+ * Returns personalised event suggestions for the logged-in user
+ * based on their join + favourite history stored in the signals index.
+ */
+export async function getRecommendedEvents(req, res) {
+  if (!isRecommendationConfigured()) {
+    return res.json({ events: [], total: 0, topCategory: null, reason: 'not_configured' });
+  }
+
+  const limit = Math.min(Number(req.query.limit) || 8, 20);
+  const result = await getRecommendations(String(req.user._id), limit);
+
+  if (!result.hits.length) {
+    return res.json({ events: [], total: 0, topCategory: null, reason: 'no_history' });
+  }
+
+  // Hydrate with real-time stats from MongoDB
+  const eventIds = result.hits.map((h) => h._id);
+  const [mongoEvents, participantCounts, favoriteCounts] = await Promise.all([
+    Event.find({ _id: { $in: eventIds } }).populate('address').lean(),
+    EventParticipant.aggregate([
+      { $match: { event_id: { $in: eventIds.map((id) => new mongoose.Types.ObjectId(String(id))) } } },
+      { $group: { _id: '$event_id', count: { $sum: 1 } } },
+    ]),
+    EventFavorite.aggregate([
+      { $match: { event_id: { $in: eventIds.map((id) => new mongoose.Types.ObjectId(String(id))) } } },
+      { $group: { _id: '$event_id', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const mongoMap        = new Map(mongoEvents.map((e) => [String(e._id), e]));
+  const participantMap  = new Map(participantCounts.map((c) => [String(c._id), c.count]));
+  const favoriteMap     = new Map(favoriteCounts.map((c) => [String(c._id), c.count]));
+
+  const enriched = result.hits.map((hit) => {
+    const mongo = mongoMap.get(String(hit._id)) || {};
+    return {
+      ...mongo,
+      ...hit,
+      photo:            mongo.photo || hit.photo,
+      address:          mongo.address || undefined,
+      participantCount: participantMap.get(String(hit._id)) || 0,
+      favoriteCount:    favoriteMap.get(String(hit._id)) || 0,
+      eventCreatorLabel: hit.ownerName,
+    };
+  });
+
+  return res.json({
+    events:      enriched,
+    total:       result.total,
+    topCategory: result.topCategory,
   });
 }
 
