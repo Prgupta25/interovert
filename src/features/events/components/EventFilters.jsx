@@ -5,6 +5,7 @@ import {
   MapPin,
   Navigation,
   SlidersHorizontal,
+  UserCircle2,
 } from 'lucide-react';
 
 const RADIUS_OPTIONS = [10, 25, 50, 100];
@@ -24,6 +25,9 @@ export default function EventFilters({
   radius,
   setRadius,
   userAddress,
+  myEvents,
+  setMyEvents,
+  currentUser,
 }) {
   const menuRef = useRef(null);
 
@@ -115,6 +119,21 @@ export default function EventFilters({
             </div>
           )}
         </div>
+
+        {/* My Events — only shown when logged in */}
+        {currentUser && (
+          <button
+            onClick={() => setMyEvents(!myEvents)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              myEvents
+                ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
+            }`}
+          >
+            <UserCircle2 size={16} />
+            My Events
+          </button>
+        )}
 
         {/* Near Me — only rendered when the user has a saved address with geocode */}
         {userAddress && (

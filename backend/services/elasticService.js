@@ -19,20 +19,25 @@ function getClient() {
 
 const MAPPINGS = {
   properties: {
-    name:             { type: 'text', analyzer: 'english', fields: { keyword: { type: 'keyword', ignore_above: 256 } } },
-    description:      { type: 'text', analyzer: 'english' },
-    activities:       { type: 'text', analyzer: 'english' },
-    ownerName:        { type: 'text', analyzer: 'english' },
-    venue:            { type: 'text', analyzer: 'english' },
-    category:         { type: 'keyword' },
-    city:             { type: 'keyword' },
-    owner_id:         { type: 'keyword' },
-    datetime:         { type: 'date' },
-    createdAt:        { type: 'date' },
-    photo:            { type: 'keyword', index: false },
-    maxAttendees:     { type: 'integer' },
-    participantCount: { type: 'integer' },
-    location:         { type: 'geo_point' },
+    name:               { type: 'text', analyzer: 'english', fields: { keyword: { type: 'keyword', ignore_above: 256 } } },
+    description:        { type: 'text', analyzer: 'english' },
+    activities:         { type: 'text', analyzer: 'english' },
+    ownerName:          { type: 'text', analyzer: 'english' },
+    venue:              { type: 'text', analyzer: 'english' },
+    category:           { type: 'keyword' },
+    city:               { type: 'keyword' },
+    owner_id:           { type: 'keyword' },
+    datetime:           { type: 'date' },
+    createdAt:          { type: 'date' },
+    photo:              { type: 'keyword', index: false },
+    maxAttendees:       { type: 'integer' },
+    participantCount:   { type: 'integer' },
+    location:           { type: 'geo_point' },
+    // Recurring events
+    recurrenceEnabled:  { type: 'boolean' },
+    recurrenceFreq:     { type: 'keyword' },
+    seriesId:           { type: 'keyword' },
+    occurrenceIndex:    { type: 'integer' },
   },
 };
 
@@ -81,9 +86,14 @@ export function buildEventDoc(event, address) {
     owner_id:         String(event.owner_id),
     datetime:         event.datetime,
     createdAt:        event.createdAt,
-    photo:            event.photo || '',
-    maxAttendees:     event.maxAttendees,
-    participantCount: event.participantCount || 0,
+    photo:             event.photo || '',
+    maxAttendees:      event.maxAttendees,
+    participantCount:  event.participantCount || 0,
+    // Recurring events
+    recurrenceEnabled: event.recurrence?.enabled || false,
+    recurrenceFreq:    event.recurrence?.frequency || null,
+    seriesId:          event.recurrence?.seriesId || null,
+    occurrenceIndex:   event.recurrence?.occurrenceIndex ?? 0,
     // geo_point — only set when geocode is available
     ...(geocode?.lat && geocode?.lng && {
       location: { lat: geocode.lat, lon: geocode.lng },
@@ -135,7 +145,7 @@ export async function bulkIndexEvents(docs) {
   return result;
 }
 
-export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page = 1, limit = 100, userLat, userLng, radius = 50 }) {
+export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page = 1, limit = 100, userLat, userLng, radius = 50, ownerId }) {
   const es = getClient();
   if (!es) return null;
 
@@ -154,6 +164,10 @@ export async function searchEvents({ q, category, dateFrom, dateTo, sortBy, page
 
   if (category && category !== 'all') {
     filter.push({ term: { category: category.toLowerCase() } });
+  }
+
+  if (ownerId) {
+    filter.push({ term: { owner_id: String(ownerId) } });
   }
 
   const range = {};

@@ -11,6 +11,7 @@ import {
   Users,
   AlignLeft,
   PartyPopper,
+  Repeat2,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import apiClient from '../../../services/apiClient';
@@ -66,6 +67,11 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
   });
   const [otherCategory, setOtherCategory] = useState('');
 
+  // Recurrence state
+  const [recurrenceEnabled, setRecurrenceEnabled]   = useState(false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState('weekly');
+  const [recurrenceEndAfter, setRecurrenceEndAfter]   = useState('');
+
   const [addressMode, setAddressMode] = useState('new');
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
@@ -118,6 +124,9 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
         ...eventData,
         ...addressPayload,
         category: eventData.category === 'Other' ? otherCategory : eventData.category,
+        recurrenceEnabled,
+        recurrenceFrequency,
+        recurrenceEndAfter: recurrenceEndAfter ? Number(recurrenceEndAfter) : null,
       });
       toast.success('Event created successfully');
       onCreated();
@@ -536,6 +545,94 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
                           onChange={(e) => setOtherCategory(e.target.value)}
                           className={inputBase}
                         />
+                      </div>
+                    )}
+                  </FormSection>
+
+                  {/* Recurring */}
+                  <FormSection
+                    icon={Repeat2}
+                    title="Recurring event"
+                    hint="Auto-create the next occurrence once this one passes."
+                  >
+                    {/* Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setRecurrenceEnabled((v) => !v)}
+                      className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 transition-all ${
+                        recurrenceEnabled
+                          ? 'border-violet-500/50 bg-violet-500/10 ring-1 ring-violet-500/25'
+                          : 'border-zinc-700/80 bg-zinc-900/50'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 text-sm font-medium text-zinc-200">
+                        <Repeat2 className={`h-4 w-4 ${recurrenceEnabled ? 'text-violet-400' : 'text-zinc-500'}`} />
+                        Make this a recurring event
+                      </span>
+                      {/* pill toggle */}
+                      <span
+                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                          recurrenceEnabled ? 'bg-violet-600' : 'bg-zinc-700'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                            recurrenceEnabled ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </span>
+                    </button>
+
+                    {/* Options — only visible when enabled */}
+                    {recurrenceEnabled && (
+                      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {/* Frequency */}
+                        <div>
+                          <label className={labelBase}>Repeat every</label>
+                          <div className="flex gap-2">
+                            {['weekly', 'monthly'].map((freq) => (
+                              <button
+                                key={freq}
+                                type="button"
+                                onClick={() => setRecurrenceFrequency(freq)}
+                                className={`flex-1 rounded-lg py-2 text-sm font-medium capitalize transition-all ${
+                                  recurrenceFrequency === freq
+                                    ? 'bg-violet-600 text-white shadow-md shadow-violet-900/40'
+                                    : 'bg-zinc-800 text-zinc-400 ring-1 ring-zinc-700 hover:text-zinc-200'
+                                }`}
+                              >
+                                {freq === 'weekly' ? '📅 Week' : '🗓️ Month'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* End after N occurrences */}
+                        <div>
+                          <label className={labelBase}>
+                            End after{' '}
+                            <span className="font-normal normal-case text-zinc-600">(optional)</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min={2}
+                              max={52}
+                              placeholder="e.g. 8"
+                              value={recurrenceEndAfter}
+                              onChange={(e) => setRecurrenceEndAfter(e.target.value)}
+                              className={inputBase}
+                            />
+                            {recurrenceEndAfter && (
+                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">
+                                occurrences
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-[11px] text-zinc-600">
+                            Leave blank to repeat indefinitely
+                          </p>
+                        </div>
                       </div>
                     )}
                   </FormSection>

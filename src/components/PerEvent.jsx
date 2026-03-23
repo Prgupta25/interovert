@@ -17,6 +17,10 @@ import {
   Sparkles,
   Shield,
   Loader2,
+  Repeat2,
+  Search,
+  Phone,
+  CheckCircle2,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { getAuthToken, getCurrentUser } from '../utils/session'
@@ -100,6 +104,210 @@ function formatEventRange(iso) {
     timeLine: d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
   }
 }
+
+// ─── Participants Table ───────────────────────────────────────────────────────
+
+function getInitials(name = '') {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+}
+
+const AVATAR_COLORS = [
+  'bg-indigo-500', 'bg-violet-500', 'bg-fuchsia-500',
+  'bg-rose-500',   'bg-amber-500',  'bg-emerald-500',
+  'bg-sky-500',    'bg-teal-500',
+]
+
+function avatarColor(name = '') {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+function ParticipantsTable({ participants, onExport }) {
+  const [search, setSearch] = React.useState('')
+
+  const filtered = React.useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return participants
+    return participants.filter(
+      (p) =>
+        p.fullName?.toLowerCase().includes(q) ||
+        p.phoneNumber?.includes(q) ||
+        p.whatsappNumber?.includes(q),
+    )
+  }, [participants, search])
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.05 }}
+      className="mt-12 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-xl shadow-black/30"
+    >
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-800/80 px-6 py-5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-400 ring-1 ring-indigo-500/25">
+            <Users className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold text-white">Registered Participants</h2>
+            <p className="text-xs text-zinc-500">
+              {participants.length} registered
+              {search && filtered.length !== participants.length && ` · ${filtered.length} shown`}
+            </p>
+          </div>
+          {/* count badge */}
+          <span className="ml-1 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-indigo-600/80 px-2 text-xs font-bold text-white">
+            {participants.length}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Search within table */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="search"
+              placeholder="Search participants…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-48 rounded-lg border border-zinc-700/60 bg-zinc-800/60 py-2 pl-8 pr-3 text-xs text-white placeholder:text-zinc-500 focus:border-indigo-500/60 focus:outline-none focus:ring-1 focus:ring-indigo-500/25"
+            />
+          </div>
+
+          {/* Export */}
+          <button
+            type="button"
+            onClick={onExport}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-medium text-white ring-1 ring-zinc-700 transition hover:bg-zinc-700"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      {participants.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800 ring-1 ring-zinc-700">
+            <Users className="h-5 w-5 text-zinc-500" />
+          </span>
+          <p className="text-sm font-medium text-zinc-400">No participants yet</p>
+          <p className="text-xs text-zinc-600">People who join this event will appear here.</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <p className="px-6 py-10 text-center text-sm text-zinc-500">
+          No results for &ldquo;{search}&rdquo;
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800/80 bg-zinc-950/60 text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
+                <th className="px-6 py-3 w-10">#</th>
+                <th className="px-6 py-3">Participant</th>
+                <th className="px-6 py-3">Phone</th>
+                <th className="px-6 py-3">WhatsApp</th>
+                <th className="px-6 py-3">Joined</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/50">
+              {filtered.map((p, idx) => {
+                const initials = getInitials(p.fullName)
+                const color    = avatarColor(p.fullName)
+                const joinedAt = p.joinedAt
+                  ? new Date(p.joinedAt).toLocaleDateString(undefined, {
+                      day: 'numeric', month: 'short', year: 'numeric',
+                    })
+                  : '—'
+                const samePhone = p.whatsappNumber && p.whatsappNumber === p.phoneNumber
+
+                return (
+                  <tr key={p._id} className="group transition-colors hover:bg-zinc-800/30">
+                    {/* Serial */}
+                    <td className="px-6 py-4 text-xs text-zinc-600">{idx + 1}</td>
+
+                    {/* Avatar + Name */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${color}`}
+                        >
+                          {initials}
+                        </span>
+                        <span className="font-medium text-white">{p.fullName}</span>
+                      </div>
+                    </td>
+
+                    {/* Phone */}
+                    <td className="px-6 py-4">
+                      <a
+                        href={`tel:${p.phoneNumber}`}
+                        className="inline-flex items-center gap-1.5 text-zinc-300 transition hover:text-indigo-300"
+                      >
+                        <Phone className="h-3 w-3 text-zinc-500" />
+                        {p.phoneNumber}
+                      </a>
+                    </td>
+
+                    {/* WhatsApp */}
+                    <td className="px-6 py-4">
+                      {samePhone ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                          Same as phone
+                        </span>
+                      ) : (
+                        <a
+                          href={`https://wa.me/${(p.whatsappNumber || p.phoneNumber).replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-zinc-300 transition hover:text-emerald-300"
+                        >
+                          <Phone className="h-3 w-3 text-zinc-500" />
+                          {p.whatsappNumber || p.phoneNumber}
+                        </a>
+                      )}
+                    </td>
+
+                    {/* Joined date */}
+                    <td className="px-6 py-4 text-xs text-zinc-500">{joinedAt}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Footer summary */}
+      {participants.length > 0 && (
+        <div className="border-t border-zinc-800/60 px-6 py-3 flex items-center justify-between">
+          <p className="text-xs text-zinc-600">
+            Showing {filtered.length} of {participants.length} participant{participants.length !== 1 ? 's' : ''}
+          </p>
+          {filtered.length > 0 && (
+            <p className="text-xs text-zinc-600">
+              Latest joined:{' '}
+              <span className="text-zinc-400">
+                {filtered[filtered.length - 1]?.fullName}
+              </span>
+            </p>
+          )}
+        </div>
+      )}
+    </motion.section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function PerEvent() {
   const navigate = useNavigate()
@@ -515,6 +723,15 @@ export default function PerEvent() {
                       Upcoming
                     </span>
                   )}
+                  {event.recurrence?.enabled && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-300 ring-1 ring-violet-500/25">
+                      <Repeat2 className="h-3 w-3" aria-hidden />
+                      Repeats {event.recurrence.frequency === 'monthly' ? 'monthly' : 'every week'}
+                      {event.recurrence.occurrenceIndex > 0 && (
+                        <span className="ml-1 opacity-60">#{event.recurrence.occurrenceIndex + 1}</span>
+                      )}
+                    </span>
+                  )}
                 </div>
                 <h1 className="max-w-4xl text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
                   {event.name}
@@ -716,14 +933,6 @@ export default function PerEvent() {
                   <div className="mt-4 flex flex-col gap-2">
                     <button
                       type="button"
-                      onClick={handleExportParticipants}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-800 py-2.5 text-sm font-medium text-white ring-1 ring-zinc-700 transition hover:bg-zinc-700"
-                    >
-                      <Download className="h-4 w-4" aria-hidden />
-                      Export CSV
-                    </button>
-                    <button
-                      type="button"
                       onClick={handleCreateWhatsappGroup}
                       className="rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
                     >
@@ -744,42 +953,10 @@ export default function PerEvent() {
           </div>
 
         {isOwner && (
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-12 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-xl shadow-black/30"
-          >
-            <div className="border-b border-zinc-800/80 px-6 py-5">
-              <h2 className="text-lg font-semibold text-white">Participants</h2>
-              <p className="mt-1 text-sm text-zinc-500">{participants.length} registered</p>
-            </div>
-            <div className="overflow-x-auto">
-              {participants.length === 0 ? (
-                <p className="px-6 py-10 text-center text-sm text-zinc-500">No participants yet.</p>
-              ) : (
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-zinc-800/80 bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
-                      <th className="px-6 py-3 font-medium">Name</th>
-                      <th className="px-6 py-3 font-medium">Phone</th>
-                      <th className="px-6 py-3 font-medium">WhatsApp</th>
-                      <th className="px-6 py-3 font-medium">Profile</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-800/60">
-                    {participants.map((p) => (
-                      <tr key={p._id} className="text-zinc-300 transition hover:bg-zinc-800/30">
-                        <td className="px-6 py-4 font-medium text-white">{p.fullName}</td>
-                        <td className="px-6 py-4">{p.phoneNumber}</td>
-                        <td className="px-6 py-4">{p.whatsappNumber || p.phoneNumber}</td>
-                        <td className="px-6 py-4 text-zinc-500">{p.profileId}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </motion.section>
+          <ParticipantsTable
+            participants={participants}
+            onExport={handleExportParticipants}
+          />
         )}
 
         <motion.section

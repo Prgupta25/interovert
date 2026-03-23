@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, Users, ArrowUpRight } from 'lucide-react';
+import { Calendar, MapPin, Users, ArrowUpRight, Repeat2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getDisplayEventPhotoUrl } from '../../../utils/eventImage';
 
@@ -35,10 +35,18 @@ export default function EventCard({ event, index = 0 }) {
           aria-hidden
         />
         <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
-          <time className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-xs font-medium text-zinc-200 backdrop-blur-sm ring-1 ring-white/10">
-            <Calendar className="h-3.5 w-3.5 text-indigo-300" />
-            {dateStr}
-          </time>
+          <div className="flex flex-col items-start gap-1">
+            <time className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-xs font-medium text-zinc-200 backdrop-blur-sm ring-1 ring-white/10">
+              <Calendar className="h-3.5 w-3.5 text-indigo-300" />
+              {dateStr}
+            </time>
+            {event.recurrenceEnabled && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-700/80 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                <Repeat2 className="h-3 w-3" />
+                {event.recurrenceFreq === 'monthly' ? 'Monthly' : 'Weekly'}
+              </span>
+            )}
+          </div>
           <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600/90 px-2.5 py-1 text-xs font-semibold text-white shadow-md backdrop-blur-sm">
             <Users className="h-3.5 w-3.5 opacity-90" />
             {event.participantCount ?? 0}

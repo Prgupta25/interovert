@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Sparkles, Compass } from 'lucide-react'
+import { getCurrentUser } from '../utils/session'
 import { toast } from 'react-hot-toast'
 import apiClient from '../services/apiClient'
 import { getSocket } from '../utils/socket'
@@ -25,6 +26,10 @@ export default function Events() {
   const [radius, setRadius] = useState(25)
   const [userAddress, setUserAddress] = useState(null)   // first saved address with geocode
 
+  // My Events filter
+  const [myEvents, setMyEvents] = useState(false)
+  const currentUser = getCurrentUser()
+
   const debounceRef = useRef(null)
 
   // Fetch the user's saved addresses once on mount to get their geo coords
@@ -46,6 +51,7 @@ export default function Events() {
       if (params.dateFrom) query.set('dateFrom', params.dateFrom)
       if (params.dateTo) query.set('dateTo', params.dateTo)
       if (params.sortBy) query.set('sortBy', params.sortBy)
+      if (params.myEvents) query.set('myEvents', 'true')
 
       // Geo params — only when Near Me is active and we have coords
       if (params.userLat != null && params.userLng != null) {
@@ -69,6 +75,7 @@ export default function Events() {
         q: searchTerm,
         category: selectedCategory,
         sortBy,
+        myEvents,
         ...(nearMe && userAddress?.geocode && {
           userLat: userAddress.geocode.lat,
           userLng: userAddress.geocode.lng,
@@ -76,7 +83,7 @@ export default function Events() {
         }),
       })
     }, 350)
-  }, [searchTerm, selectedCategory, sortBy, nearMe, radius, userAddress, loadEvents])
+  }, [searchTerm, selectedCategory, sortBy, nearMe, radius, userAddress, myEvents, loadEvents])
 
   useEffect(() => {
     debouncedLoad()
@@ -157,6 +164,9 @@ export default function Events() {
           radius={radius}
           setRadius={setRadius}
           userAddress={userAddress}
+          myEvents={myEvents}
+          setMyEvents={setMyEvents}
+          currentUser={currentUser}
         />
 
         {events.length === 0 ? (

@@ -27,6 +27,7 @@ import {
   getRecommendations,
   isRecommendationConfigured,
 } from '../services/recommendationService.js';
+import { generateSeriesId } from '../services/recurringService.js';
 
 function isOwner(event, userId) {
   return String(event.owner_id) === String(userId);
@@ -57,10 +58,12 @@ async function getEventStats(eventId) {
 }
 
 export async function listEvents(req, res) {
-  const { q, category, dateFrom, dateTo, sortBy, page, limit, userLat, userLng, radius } = req.query;
+  const { q, category, dateFrom, dateTo, sortBy, page, limit, userLat, userLng, radius, myEvents } = req.query;
 
   if (isElasticConfigured()) {
-    const esResult = await esSearch({ q, category, dateFrom, dateTo, sortBy, page, limit, userLat, userLng, radius });
+    // myEvents=true → filter to events owned by the requesting user (requires auth token)
+    const ownerId = myEvents === 'true' && req.user?._id ? req.user._id : undefined;
+    const esResult = await esSearch({ q, category, dateFrom, dateTo, sortBy, page, limit, userLat, userLng, radius, ownerId });
     if (esResult) {
       const eventIds = esResult.hits.map((h) => h._id);
 
@@ -214,6 +217,24 @@ export async function createEvent(req, res) {
 
   const photo = await uploadIfBase64(payload.photo, 'interovert/events');
 
+  // ── Recurrence ─────────────────────────────────────────────────────────────
+  const recurringEnabled = payload.recurrenceEnabled === true || payload.recurrenceEnabled === 'true';
+  const recurrence = recurringEnabled
+    ? {
+        enabled:             true,
+        frequency:           ['weekly', 'monthly'].includes(payload.recurrenceFrequency)
+                               ? payload.recurrenceFrequency
+                               : 'weekly',
+        seriesId:            generateSeriesId(),
+        parentEventId:       null,  // this IS the original (occurrence #0)
+        occurrenceIndex:     0,
+        endAfterOccurrences: payload.recurrenceEndAfter
+                               ? Number(payload.recurrenceEndAfter)
+                               : null,
+        spawnedNext:         false,
+      }
+    : { enabled: false };
+
   const event = await Event.create({
     photo,
     name: payload.name,
@@ -227,6 +248,7 @@ export async function createEvent(req, res) {
     expectations: payload.expectations,
     owner_id: req.user._id,
     ownerName: req.user.name,
+    recurrence,
   });
 
   const populated = await event.populate('address');

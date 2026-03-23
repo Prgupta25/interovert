@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "node backend/server.js",
+    "server": "node --watch backend/server.js",
     "server:dev": "nodemon backend/server.js",
     "server:debug": "node --inspect backend/server.js"
   },

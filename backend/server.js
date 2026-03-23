@@ -20,6 +20,7 @@ import { getPgPool, hasPostgresConfig } from './config/pg.js';
 import { registerCommunitySocketHandlers } from './services/communitySocket.js';
 import { ensureIndex as ensureElasticIndex } from './services/elasticService.js';
 import { ensureSignalsIndex } from './services/recommendationService.js';
+import { processDueRecurrences } from './services/recurringService.js';
 import { detectIntentText, isDialogflowConfigured } from './services/dialogflowChat.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -71,6 +72,16 @@ ensureElasticIndex().catch((err) =>
 ensureSignalsIndex().catch((err) =>
   console.warn('[recommend] signals index setup skipped:', err.message)
 );
+
+// ── Recurring events cron ────────────────────────────────────────────────────
+// Run once 10s after startup (catches any missed while server was down),
+// then every hour to auto-spawn next occurrences.
+setTimeout(() => {
+  processDueRecurrences().catch(() => {});
+}, 10_000);
+setInterval(() => {
+  processDueRecurrences().catch(() => {});
+}, 60 * 60 * 1000); // every hour
 
 if (hasPostgresConfig()) {
   const pgPool = getPgPool();

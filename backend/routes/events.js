@@ -27,7 +27,8 @@ import {
 
 const router = Router();
 
-router.get('/', asyncHandler(listEvents));
+// optionalAuth — populates req.user when token present (needed for myEvents filter)
+router.get('/', optionalAuth, asyncHandler(listEvents));
 // ⚠️  Must be registered BEFORE /:eventId so "recommendations" isn't treated as an id
 router.get('/recommendations', requireAuth, asyncHandler(getRecommendedEvents));
 router.get('/:eventId', validateEventIdParam, asyncHandler(getEvent));
