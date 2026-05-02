@@ -227,12 +227,6 @@ export default function Signup() {
 
       if (/already exists/i.test(msg)) {
         setErrors((prev) => ({ ...prev, email: 'An account with this email already exists' }))
-      } else if (/could not verify that address/i.test(msg)) {
-        setErrors((prev) => ({
-          ...prev,
-          line1: 'Use a clearer street or area with city and postal code',
-          city: 'Required for map verification',
-        }))
       } else if (/address is required/i.test(msg)) {
         setErrors((prev) => ({
           ...prev,

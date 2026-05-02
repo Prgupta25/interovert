@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, MapPin, Users, ArrowUpRight, Repeat2, Ticket } from 'lucide-react';
+import { Calendar, MapPin, Users, ArrowUpRight, Repeat2, Ticket, BadgeCheck, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getDisplayEventPhotoUrl } from '../../../utils/eventImage';
 import { getAuthToken } from '../../../utils/session';
@@ -78,9 +78,28 @@ export default function EventCard({ event, index = 0, onGuestClick }) {
         <h3 className="mb-2 text-xl font-semibold text-white">{event.name}</h3>
         <p className="mb-2 text-sm text-indigo-300">Event Creator: {event.eventCreatorLabel}</p>
         <div className="mb-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <MapPin size={16} />
-            {event.venue}
+          <div className="flex min-w-0 items-center gap-2 text-sm text-gray-400">
+            <MapPin size={16} className="shrink-0" />
+            <span className="truncate">{event.venue}</span>
+            {event.address ? (
+              event.address.is_verified ? (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300"
+                  title="Address verified on the map"
+                >
+                  <BadgeCheck size={10} />
+                  Verified
+                </span>
+              ) : (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+                  title="Address not verified on the map"
+                >
+                  <ShieldAlert size={10} />
+                  Unverified
+                </span>
+              )
+            ) : null}
           </div>
           {event.distanceKm != null && (
             <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-indigo-900/60 px-2 py-1 text-xs text-indigo-300">

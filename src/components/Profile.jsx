@@ -19,6 +19,8 @@ import {
   Users,
   Sparkles,
   UserCircle2,
+  BadgeCheck,
+  ShieldAlert,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
@@ -115,6 +117,7 @@ export default function Profile() {
   const [savedSnapshot, setSavedSnapshot] = useState(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [deletingAddressId, setDeletingAddressId] = useState(null)
+  const [verifyingAddressId, setVerifyingAddressId] = useState(null)
 
   useEffect(() => {
     const token = getAuthToken()
@@ -211,6 +214,25 @@ export default function Profile() {
       }
       return [saved, ...prev]
     })
+  }
+
+  const handleVerifyAddress = async (addressId) => {
+    setVerifyingAddressId(addressId)
+    try {
+      const { data } = await apiClient.post(`/api/addresses/${addressId}/verify`)
+      if (data?.address) {
+        setAddresses((prev) => prev.map((a) => (a._id === addressId ? data.address : a)))
+      }
+      if (data?.verified) {
+        toast.success('Address verified ✓')
+      } else {
+        toast.error(data?.message || 'Still could not verify this address')
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to verify address')
+    } finally {
+      setVerifyingAddressId(null)
+    }
   }
 
   const handleDeleteAddress = async (addressId) => {
@@ -563,6 +585,17 @@ export default function Profile() {
                           <span className="rounded-md bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-300">
                             {addr.label || 'Address'}
                           </span>
+                          {addr.is_verified ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                              <BadgeCheck className="h-3 w-3" aria-hidden />
+                              Verified
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                              <ShieldAlert className="h-3 w-3" aria-hidden />
+                              Unverified
+                            </span>
+                          )}
                           <span className="text-[11px] font-medium text-emerald-400/90">Open in Maps →</span>
                         </div>
                         <p className="text-sm font-medium text-white">
@@ -574,6 +607,26 @@ export default function Profile() {
                         </p>
                       </a>
                       <div className="flex shrink-0 flex-col justify-start gap-1 border-l border-zinc-800/60 pl-1 sm:flex-row sm:items-start sm:border-l-0 sm:pl-0">
+                        {!addr.is_verified && (
+                          <button
+                            type="button"
+                            disabled={verifyingAddressId === addr._id}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleVerifyAddress(addr._id)
+                            }}
+                            className="rounded-xl p-2 text-zinc-500 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-50"
+                            aria-label="Try to verify address"
+                            title="Try to verify this address on the map"
+                          >
+                            {verifyingAddressId === addr._id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-emerald-300" aria-hidden />
+                            ) : (
+                              <BadgeCheck className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {

@@ -348,13 +348,10 @@ export async function createEvent(req, res) {
       ? { lat: Number(override.lat), lng: Number(override.lng) }
       : await geocodeAddress(formatted);
 
-    if (!geocode && payload.allowMissingGeocode !== true) {
-      return res.status(400).json({
-        message:
-          'Could not validate this address. Please refine it or pick a suggestion before publishing.',
-        code: 'ADDRESS_NOT_FOUND',
-      });
-    }
+    const verified =
+      !!geocode &&
+      Number.isFinite(Number(geocode.lat)) &&
+      Number.isFinite(Number(geocode.lng));
 
     const addressDoc = await Address.create({
       owner_id: req.user._id,
@@ -367,7 +364,8 @@ export async function createEvent(req, res) {
       country: (addressCountry || '').trim(),
       postalCode: (addressPostalCode || '').trim(),
       formattedAddress: formatted,
-      geocode,
+      geocode: verified ? geocode : null,
+      is_verified: verified,
     });
     addressId = addressDoc._id;
   }
@@ -402,6 +400,10 @@ export async function createEvent(req, res) {
       const ovGeocode = hasOv
         ? { lat: Number(ovOverride.lat), lng: Number(ovOverride.lng) }
         : await geocodeAddress(formatted);
+      const ovVerified =
+        !!ovGeocode &&
+        Number.isFinite(Number(ovGeocode.lat)) &&
+        Number.isFinite(Number(ovGeocode.lng));
       const ovDoc = await Address.create({
         owner_id: req.user._id,
         type: 'event',
@@ -413,7 +415,8 @@ export async function createEvent(req, res) {
         country: (addr.addressCountry || '').trim(),
         postalCode: (addr.addressPostalCode || '').trim(),
         formattedAddress: formatted,
-        geocode: ovGeocode,
+        geocode: ovVerified ? ovGeocode : null,
+        is_verified: ovVerified,
       });
       overrideEntries.push({ occurrenceIndex: idx, addressId: ovDoc._id });
     }
@@ -497,9 +500,15 @@ export async function updateEvent(req, res) {
         override &&
         Number.isFinite(Number(override.lat)) &&
         Number.isFinite(Number(override.lng));
-      updated.geocode = hasOverride
+      const nextGeocode = hasOverride
         ? { lat: Number(override.lat), lng: Number(override.lng) }
         : await geocodeAddress(updated.formattedAddress);
+      const verified =
+        !!nextGeocode &&
+        Number.isFinite(Number(nextGeocode.lat)) &&
+        Number.isFinite(Number(nextGeocode.lng));
+      updated.geocode = verified ? nextGeocode : null;
+      updated.is_verified = verified;
 
       // If this event is part of a recurring series AND the address is shared
       // with siblings/parent, fork — create a new Address so we don't change
@@ -527,6 +536,7 @@ export async function updateEvent(req, res) {
           postalCode: updated.postalCode,
           formattedAddress: updated.formattedAddress,
           geocode: updated.geocode,
+          is_verified: updated.is_verified,
         });
         event.address = newAddr._id;
       } else {

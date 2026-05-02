@@ -31,12 +31,8 @@ export async function signup(req, res) {
     country: String(address?.country || '').trim(),
   });
   const geocode = await geocodeAddress(formatted);
-  if (!geocode || typeof geocode.lat !== 'number' || typeof geocode.lng !== 'number') {
-    return res.status(400).json({
-      message:
-        'We could not verify that address on the map. Add a clearer street or area, city, and ideally postal code or country, then try again.',
-    });
-  }
+  const isAddressVerified =
+    !!geocode && typeof geocode.lat === 'number' && typeof geocode.lng === 'number';
 
   const hashedPassword = await bcrypt.hash(String(password), 10);
   const phone = String(phoneNumber || '').trim();
@@ -66,7 +62,8 @@ export async function signup(req, res) {
       country: String(address?.country || '').trim(),
       postalCode: String(address?.postalCode || '').trim(),
       formattedAddress: formatted,
-      geocode,
+      geocode: isAddressVerified ? geocode : null,
+      is_verified: isAddressVerified,
     });
   } catch (err) {
     await User.findByIdAndDelete(user._id);

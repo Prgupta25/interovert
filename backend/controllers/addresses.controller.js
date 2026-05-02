@@ -29,12 +29,8 @@ export async function createAddress(req, res) {
 
   const formatted = buildFormattedAddress({ line1, line2, city, state, postalCode, country });
   const geocode = await geocodeAddress(formatted);
-  if (!geocode || typeof geocode.lat !== 'number' || typeof geocode.lng !== 'number') {
-    return res.status(400).json({
-      message:
-        'Could not verify that address on the map. Refine street, city, and add postal code or country if needed.',
-    });
-  }
+  const verified =
+    !!geocode && typeof geocode.lat === 'number' && typeof geocode.lng === 'number';
 
   const address = await Address.create({
     owner_id: req.user._id,
@@ -47,7 +43,8 @@ export async function createAddress(req, res) {
     country: (country || '').trim(),
     postalCode: (postalCode || '').trim(),
     formattedAddress: formatted,
-    geocode,
+    geocode: verified ? geocode : null,
+    is_verified: verified,
   });
 
   return res.status(201).json({ message: 'Address saved', address });
@@ -79,18 +76,51 @@ export async function updateAddress(req, res) {
 
   updated.formattedAddress = buildFormattedAddress(updated);
   const nextGeocode = await geocodeAddress(updated.formattedAddress);
-  if (!nextGeocode || typeof nextGeocode.lat !== 'number' || typeof nextGeocode.lng !== 'number') {
-    return res.status(400).json({
-      message:
-        'Could not verify the updated address on the map. Check line 1, city, and region details.',
-    });
-  }
-  updated.geocode = nextGeocode;
+  const verified =
+    !!nextGeocode && typeof nextGeocode.lat === 'number' && typeof nextGeocode.lng === 'number';
+  updated.geocode = verified ? nextGeocode : null;
+  updated.is_verified = verified;
 
   Object.assign(address, updated);
   await address.save();
 
   return res.json({ message: 'Address updated', address });
+}
+
+// POST /api/addresses/:addressId/verify  — retry geocoding an existing address
+export async function verifyExistingAddress(req, res) {
+  const address = await Address.findById(req.params.addressId);
+  if (!address) return res.status(404).json({ message: 'Address not found' });
+  if (String(address.owner_id) !== String(req.user._id)) {
+    return res.status(403).json({ message: 'Not authorized' });
+  }
+
+  const formatted =
+    address.formattedAddress ||
+    buildFormattedAddress({
+      line1: address.line1,
+      line2: address.line2,
+      city: address.city,
+      state: address.state,
+      postalCode: address.postalCode,
+      country: address.country,
+    });
+  const geocode = await geocodeAddress(formatted);
+  const verified =
+    !!geocode && typeof geocode.lat === 'number' && typeof geocode.lng === 'number';
+
+  address.formattedAddress = formatted;
+  address.geocode = verified ? geocode : null;
+  address.is_verified = verified;
+  await address.save();
+
+  return res.json({
+    verified,
+    message: verified
+      ? 'Address verified on the map.'
+      : 'Still could not verify this address. Try editing it with a clearer street, city, or postal code.',
+    address,
+  });
 }
 
 // DELETE /api/addresses/:addressId  — delete a user address

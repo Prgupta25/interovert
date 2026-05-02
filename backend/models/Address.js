@@ -22,6 +22,7 @@ const addressSchema = new mongoose.Schema(
     postalCode: { type: String, trim: true, default: '' },
     formattedAddress: { type: String, trim: true },
     geocode: { type: geocodeSchema, default: null },
+    is_verified: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

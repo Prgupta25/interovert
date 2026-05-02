@@ -24,6 +24,8 @@ import {
   Ticket,
   IndianRupee,
   CreditCard,
+  BadgeCheck,
+  ShieldAlert,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { getAuthToken, getCurrentUser } from '../utils/session'
@@ -888,16 +890,35 @@ export default function PerEvent() {
                   {addressLine ? (
                     <>
                       <p className="font-medium text-white">{addressLine}</p>
-                      {mapHref ? (
-                        <a
-                          href={mapHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 inline-flex text-xs font-semibold text-indigo-400 hover:text-indigo-300"
-                        >
-                          Open in map
-                        </a>
-                      ) : null}
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        {event.address?.is_verified ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300"
+                            title="Address verified on the map"
+                          >
+                            <BadgeCheck className="h-3 w-3" aria-hidden />
+                            Verified
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+                            title="Address not verified on the map"
+                          >
+                            <ShieldAlert className="h-3 w-3" aria-hidden />
+                            Unverified
+                          </span>
+                        )}
+                        {mapHref ? (
+                          <a
+                            href={mapHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex text-xs font-semibold text-indigo-400 hover:text-indigo-300"
+                          >
+                            Open in map
+                          </a>
+                        ) : null}
+                      </div>
                     </>
                   ) : (
                     <p className="text-zinc-500">Address not specified</p>

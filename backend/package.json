@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "node server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "verify-addresses": "node scripts/verifyAllAddresses.js"
   },
   "dependencies": {
     "razorpay": "^2.9.6"
