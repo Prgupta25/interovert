@@ -30,6 +30,7 @@ import { getAuthToken, getCurrentUser } from '../utils/session'
 import AuthRequiredModal from './AuthRequiredModal'
 import apiClient from '../services/apiClient'
 import { PageSkeleton } from './ui/Skeleton'
+import EditVenueModal from '../features/events/components/EditVenueModal'
 
 const CATEGORY_STYLES = {
   Adventure: 'bg-emerald-500/20 text-emerald-300 ring-emerald-500/30',
@@ -333,6 +334,7 @@ export default function PerEvent() {
   const [isWhatsAppLoading, setIsWhatsAppLoading] = useState(false)
   const [isDeletingEvent, setIsDeletingEvent] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isEditVenueOpen, setIsEditVenueOpen] = useState(false)
 
   const currentUser = getCurrentUser()
   const token = getAuthToken()
@@ -1110,6 +1112,16 @@ export default function PerEvent() {
                   <div className="mt-4 flex flex-col gap-2">
                     <button
                       type="button"
+                      onClick={() => setIsEditVenueOpen(true)}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/10 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20"
+                    >
+                      <MapPin className="h-4 w-4" aria-hidden />
+                      {event?.recurrenceEnabled || event?.recurrence?.enabled
+                        ? 'Change venue (this occurrence)'
+                        : 'Change venue'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={handleCreateWhatsappGroup}
                       disabled={isWhatsAppLoading}
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1267,6 +1279,21 @@ export default function PerEvent() {
         ) : null}
         </div>
       </main>
+
+      <EditVenueModal
+        isOpen={isEditVenueOpen}
+        onClose={() => setIsEditVenueOpen(false)}
+        event={event}
+        onUpdated={(updatedEvent) => {
+          if (updatedEvent) {
+            setEvent((prev) => ({ ...prev, ...updatedEvent }))
+          }
+          apiClient
+            .get(`/api/events/${id}`)
+            .then(({ data }) => setEvent(data))
+            .catch(() => {})
+        }}
+      />
     </div>
   )
 }

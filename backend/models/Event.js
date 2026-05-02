@@ -36,6 +36,7 @@ const eventSchema = new mongoose.Schema(
     description:    { type: String, required: true, trim: true },
     address:        { type: mongoose.Schema.Types.ObjectId, ref: 'Address', required: true },
     datetime:       { type: Date,   required: true },
+    endDatetime:    { type: Date,   default: null },
     category:       { type: String, required: true, trim: true },
     activities:     { type: String, required: true, trim: true },
     maxAttendees:   { type: Number, required: true, min: 1 },
@@ -52,6 +53,7 @@ const eventSchema = new mongoose.Schema(
 );
 
 eventSchema.index({ datetime: 1 });
+eventSchema.index({ address: 1, datetime: 1 });
 eventSchema.index({ category: 1 });
 // Efficient cron query: find recurring events past their datetime that haven't spawned yet
 eventSchema.index({ 'recurrence.enabled': 1, 'recurrence.spawnedNext': 1, datetime: 1 });

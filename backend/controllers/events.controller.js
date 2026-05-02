@@ -436,12 +436,19 @@ export async function createEvent(req, res) {
       }
     : { enabled: false };
 
+  const startAt = payload.datetime ? new Date(payload.datetime) : null;
+  const endAt   = payload.endDatetime ? new Date(payload.endDatetime) : null;
+  if (endAt && startAt && endAt.getTime() <= startAt.getTime()) {
+    return res.status(400).json({ message: 'End time must be after the start time' });
+  }
+
   const event = await Event.create({
     photo,
     name: payload.name,
     description: payload.description,
     address: addressId,
-    datetime: payload.datetime ? new Date(payload.datetime) : null,
+    datetime: startAt,
+    endDatetime: endAt,
     category: payload.category,
     activities: payload.activities,
     maxAttendees: Number(payload.maxAttendees),
@@ -537,10 +544,20 @@ export async function updateEvent(req, res) {
     }
   }
 
+  const nextStart = body.datetime ? new Date(body.datetime) : event.datetime;
+  let nextEnd = event.endDatetime;
+  if (Object.prototype.hasOwnProperty.call(body, 'endDatetime')) {
+    nextEnd = body.endDatetime ? new Date(body.endDatetime) : null;
+  }
+  if (nextEnd && nextStart && nextEnd.getTime() <= new Date(nextStart).getTime()) {
+    return res.status(400).json({ message: 'End time must be after the start time' });
+  }
+
   Object.assign(event, {
     name: body.name ?? event.name,
     description: body.description ?? event.description,
-    datetime: body.datetime ? new Date(body.datetime) : event.datetime,
+    datetime: nextStart,
+    endDatetime: nextEnd,
     category: body.category ?? event.category,
     activities: body.activities ?? event.activities,
     maxAttendees: body.maxAttendees ? Number(body.maxAttendees) : event.maxAttendees,

@@ -79,6 +79,7 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
     name: '',
     description: '',
     datetime: '',
+    endDatetime: '',
     category: '',
     activities: '',
     maxAttendees: '',
@@ -166,6 +167,16 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
       return;
     }
 
+    const end = eventData.endDatetime ? new Date(eventData.endDatetime) : null;
+    if (!end || Number.isNaN(end.getTime())) {
+      toast.error('Please choose a valid end date and time');
+      return;
+    }
+    if (end.getTime() <= start.getTime()) {
+      toast.error('End time must be after the start time');
+      return;
+    }
+
     const maxN = Number(eventData.maxAttendees);
     if (Number.isFinite(maxN) && maxN > MAX_ATTENDEES_LIMIT) {
       toast.error('Attendees cannot be more than 10,000.');
@@ -192,6 +203,7 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
         ...addressPayload,
         category:     eventData.category === 'Other' ? otherCategory : eventData.category,
         ticketPrice:  eventData.ticketPrice ? Number(eventData.ticketPrice) : 0,
+        endDatetime:  eventData.endDatetime || null,
         recurrenceEnabled,
         recurrenceFrequency,
         recurrenceEndAfter: recurrenceEndAfter ? Number(recurrenceEndAfter) : null,
@@ -583,6 +595,8 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
                           <SimilarEventsAtVenue
                             lat={validatedGeocode.lat}
                             lng={validatedGeocode.lng}
+                            startDatetime={eventData.datetime}
+                            endDatetime={eventData.endDatetime}
                           />
                         )}
                       </div>
@@ -595,6 +609,8 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
                           <SimilarEventsAtVenue
                             lat={sel.geocode.lat}
                             lng={sel.geocode.lng}
+                            startDatetime={eventData.datetime}
+                            endDatetime={eventData.endDatetime}
                           />
                         </div>
                       ) : null;
@@ -610,7 +626,7 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <label className={labelBase} htmlFor="ce-dt">
-                          Date & time {reqStar}
+                          Starts at {reqStar}
                         </label>
                         <input
                           id="ce-dt"
@@ -619,12 +635,35 @@ export default function CreateEventModal({ isOpen, onClose, onCreated, categorie
                           min={datetimeLocalMin}
                           value={eventData.datetime}
                           onChange={(e) =>
-                            setEventData((prev) => ({ ...prev, datetime: e.target.value }))
+                            setEventData((prev) => ({
+                              ...prev,
+                              datetime: e.target.value,
+                              endDatetime:
+                                prev.endDatetime && prev.endDatetime <= e.target.value
+                                  ? ''
+                                  : prev.endDatetime,
+                            }))
                           }
                           className={inputBase}
                         />
                       </div>
                       <div>
+                        <label className={labelBase} htmlFor="ce-dt-end">
+                          Ends at {reqStar}
+                        </label>
+                        <input
+                          id="ce-dt-end"
+                          type="datetime-local"
+                          required
+                          min={eventData.datetime || datetimeLocalMin}
+                          value={eventData.endDatetime}
+                          onChange={(e) =>
+                            setEventData((prev) => ({ ...prev, endDatetime: e.target.value }))
+                          }
+                          className={inputBase}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
                         <label className={labelBase} htmlFor="ce-cat">
                           Category {reqStar}
                         </label>
